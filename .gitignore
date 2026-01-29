@@ -1,0 +1,31 @@
+# Python virtual environment
+venv/
+*.venv
+env/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE and editor directories
+.vscode/
+.idea/
+.project
+.classpath
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Secrets and configuration - VERY IMPORTANT
+.env
+config.ini
+
+# Docker cache
+.dockerignore
+docker-compose.override.yml
+
+# LanceDB data
+data/
