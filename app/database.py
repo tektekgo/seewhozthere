@@ -40,15 +40,21 @@ class Database:
             os.makedirs(db_dir, exist_ok=True)
     
     def _get_connection(self) -> sqlite3.Connection:
-        """
-        Get a database connection with row factory enabled.
-        
-        Returns:
-            SQLite connection object
-        """
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row  # Enable column access by name
+        conn = sqlite3.connect(
+            self.db_path,
+            detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
+        )
+        conn.row_factory = sqlite3.Row
         return conn
+    
+    def _parse_datetime_fields(self, row_dict: Dict) -> Dict:
+        for key in ['first_seen', 'last_seen', 'timestamp', 'created_at', 'updated_at']:
+            if key in row_dict and row_dict[key] and isinstance(row_dict[key], str):
+                try:
+                    row_dict[key] = datetime.fromisoformat(row_dict[key].replace('Z', '+00:00'))
+                except (ValueError, AttributeError):
+                    pass
+        return row_dict
     
     def _init_db(self):
         """Create the database tables if they don't exist"""
@@ -363,7 +369,7 @@ class Database:
         rows = cursor.fetchall()
         conn.close()
         
-        return [dict(row) for row in rows]
+        return [self._parse_datetime_fields(dict(row)) for row in rows]
     
     def get_visitor_history(self, visitor_id: int, days: int = 7) -> List[Dict]:
         """
@@ -393,7 +399,7 @@ class Database:
         rows = cursor.fetchall()
         conn.close()
         
-        return [dict(row) for row in rows]
+        return [self._parse_datetime_fields(dict(row)) for row in rows]
     
     def get_unknown_sightings(self, limit: int = 50) -> List[Dict]:
         """
@@ -419,7 +425,7 @@ class Database:
         rows = cursor.fetchall()
         conn.close()
         
-        return [dict(row) for row in rows]
+        return [self._parse_datetime_fields(dict(row)) for row in rows]
     
     def identify_sighting(self, sighting_id: int, visitor_id: int) -> bool:
         """
