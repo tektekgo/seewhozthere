@@ -35,9 +35,12 @@ def get_daily_summary():
     """Gets today's visitor summary from the database."""
     db = get_db()
     summary = db.get_today_summary()
+    stats = db.get_statistics()
     
     # Transform database format to template format
     visitors = []
+    unknown_count = 0
+    
     for visitor in summary:
         # Format timestamps
         first_seen_time = visitor['first_seen'].strftime('%H:%M:%S') if visitor['first_seen'] else 'N/A'
@@ -46,10 +49,14 @@ def get_daily_summary():
         # Determine thumbnail URL
         thumbnail_url = visitor.get('thumbnail_path') or visitor.get('latest_snapshot') or '/static/mock_faces/unknown_1.jpg'
         
+        is_known = visitor['visitor_id'] != 0
+        if not is_known:
+            unknown_count += 1
+        
         visitors.append({
             "id": f"visitor_{visitor['visitor_id']}",
             "name": visitor['name'],
-            "is_known": visitor['visitor_id'] != 0,
+            "is_known": is_known,
             "first_seen": first_seen_time,
             "last_seen": last_seen_time,
             "sighting_count": visitor['sighting_count'],
@@ -59,7 +66,10 @@ def get_daily_summary():
     return {
         "summary_date": datetime.date.today().isoformat(),
         "timezone": TIMEZONE,
-        "visitors": visitors
+        "visitors": visitors,
+        "total_visitors": stats['total_visitors'],
+        "unknown_count": unknown_count,
+        "active_cameras": 0  # Will be populated when cameras are connected
     }
 
 # --- API Endpoints ---
