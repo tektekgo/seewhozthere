@@ -20,6 +20,7 @@ config.read(config_path)
 
 # General settings
 TIMEZONE = config.get("GENERAL", "timezone", fallback="UTC")
+PORT = config.getint("GENERAL", "port", fallback=8888)
 
 # Scheduler settings
 SCHEDULER_ENABLED = config.getboolean("SCHEDULER", "enabled", fallback=False)

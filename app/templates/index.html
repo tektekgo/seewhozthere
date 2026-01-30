@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeeWhozThere Dashboard</title>
+    <link rel="stylesheet" href="/static/static.css">
+</head>
+<body>
+    <header>
+        <h1>SeeWhozThere</h1>
+        <div class="date-summary">
+            Activity for: <strong>{{ summary.summary_date }}</strong> ({{ summary.timezone }})
+        </div>
+    </header>
+
+    <main>
+        <div class="visitor-grid">
+            <!-- 
+                This is a Jinja2 for-loop. It will loop through each 'visitor'
+                in the 'summary.visitors' list we pass from Python.
+            -->
+            {% for visitor in summary.visitors %}
+            <div class="visitor-card {% if visitor.is_known %}known{% else %}unknown{% endif %}">
+                <div class="visitor-thumbnail">
+                    <img src="{{ visitor.thumbnail_url }}" alt="Visitor thumbnail">
+                </div>
+                <div class="visitor-info">
+                    <h2>{{ visitor.name }}</h2>
+                    <div class="details">
+                        <p><strong>First Seen:</strong> {{ visitor.first_seen }}</p>
+                        <p><strong>Last Seen:</strong> {{ visitor.last_seen }}</p>
+                        <p><strong>Sightings:</strong> {{ visitor.sighting_count }}</p>
+                    </div>
+                </div>
+                {% if not visitor.is_known %}
+                <div class="card-actions">
+                    <button>Identify</button>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </main>
+
+    <footer>
+        <p>SeeWhozThere - Local & Private Monitoring</p>
+    </footer>
+</body>
+</html>

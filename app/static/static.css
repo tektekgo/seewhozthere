@@ -1,0 +1,116 @@
+/* General Body Styling */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f0f2f5;
+    margin: 0;
+    color: #333;
+}
+
+/* Header Styling */
+header {
+    background-color: #fff;
+    padding: 20px 40px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #1c1e21;
+}
+
+.date-summary {
+    font-size: 16px;
+    color: #606770;
+}
+
+/* Main Content Area */
+main {
+    padding: 40px;
+}
+
+/* Visitor Grid Layout */
+.visitor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 30px;
+}
+
+/* Visitor Card Styling */
+.visitor-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease-in-out;
+}
+
+.visitor-card:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.visitor-thumbnail img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    background-color: #eee;
+}
+
+.visitor-info {
+    padding: 20px;
+}
+
+.visitor-info h2 {
+    margin: 0 0 15px 0;
+    font-size: 20px;
+}
+
+.visitor-info .details p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: #606770;
+}
+
+/* Styling for Known vs Unknown visitors */
+.visitor-card.unknown h2 {
+    color: #d9534f; /* Reddish color for "Unknown" */
+}
+
+.visitor-card.known h2 {
+    color: #5cb85c; /* Greenish color for known people */
+}
+
+/* Action Button Styling */
+.card-actions {
+    padding: 0 20px 20px 20px;
+    margin-top: auto;
+}
+
+.card-actions button {
+    background-color: #1877f2;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    width: 100%;
+}
+
+.card-actions button:hover {
+    background-color: #166fe5;
+}
+
+/* Footer Styling */
+footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 12px;
+    color: #90949c;
+}
