@@ -10,6 +10,9 @@ import os
 # Import our configuration settings from config.py
 from app.config import TIMEZONE, PORT
 
+# Import database functions
+from app.database import get_db
+
 # --- Application Setup ---
 
 # Create the main FastAPI application instance
@@ -26,42 +29,37 @@ app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=APP_DIR / "templates")
 
 
-# --- Mock Data Function ---
-# This function simulates the data we will eventually get from our database.
-def get_mock_daily_summary():
-    """Generates a fake list of visitor sightings for demonstration."""
+# --- Data Functions ---
+
+def get_daily_summary():
+    """Gets today's visitor summary from the database."""
+    db = get_db()
+    summary = db.get_today_summary()
+    
+    # Transform database format to template format
+    visitors = []
+    for visitor in summary:
+        # Format timestamps
+        first_seen_time = visitor['first_seen'].strftime('%H:%M:%S') if visitor['first_seen'] else 'N/A'
+        last_seen_time = visitor['last_seen'].strftime('%H:%M:%S') if visitor['last_seen'] else 'N/A'
+        
+        # Determine thumbnail URL
+        thumbnail_url = visitor.get('thumbnail_path') or visitor.get('latest_snapshot') or '/static/mock_faces/unknown_1.jpg'
+        
+        visitors.append({
+            "id": f"visitor_{visitor['visitor_id']}",
+            "name": visitor['name'],
+            "is_known": visitor['visitor_id'] != 0,
+            "first_seen": first_seen_time,
+            "last_seen": last_seen_time,
+            "sighting_count": visitor['sighting_count'],
+            "thumbnail_url": thumbnail_url
+        })
+    
     return {
         "summary_date": datetime.date.today().isoformat(),
         "timezone": TIMEZONE,
-        "visitors": [
-            {
-                "id": "person_01",
-                "name": "Bob",
-                "is_known": True,
-                "first_seen": "09:15:32",
-                "last_seen": "14:20:01",
-                "sighting_count": 3,
-                "thumbnail_url": "/static/mock_faces/bob.jpg"
-            },
-            {
-                "id": "person_02",
-                "name": "Unknown",
-                "is_known": False,
-                "first_seen": "11:30:15",
-                "last_seen": "11:30:15",
-                "sighting_count": 1,
-                "thumbnail_url": "/static/mock_faces/unknown_1.jpg"
-            },
-            {
-                "id": "person_03",
-                "name": "Delivery Driver",
-                "is_known": True,
-                "first_seen": "12:05:45",
-                "last_seen": "12:05:45",
-                "sighting_count": 1,
-                "thumbnail_url": "/static/mock_faces/delivery.jpg"
-            },
-        ]
+        "visitors": visitors
     }
 
 # --- API Endpoints ---
@@ -73,8 +71,8 @@ async def get_dashboard(request: Request):
     """
     print("Request received for the main dashboard.")
     
-    # Get the (mock) data for today's summary
-    summary_data = get_mock_daily_summary()
+    # Get the real data from the database
+    summary_data = get_daily_summary()
     
     # Render the index.html template, passing the data to it
     return templates.TemplateResponse(

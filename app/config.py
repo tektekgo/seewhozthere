@@ -20,7 +20,8 @@ config.read(config_path)
 
 # General settings
 TIMEZONE = config.get("GENERAL", "timezone", fallback="UTC")
-PORT = config.getint("GENERAL", "port", fallback=8888)
+PORT = config.getint("GENERAL", "port", fallback=7222)
+DATABASE_PATH = config.get("GENERAL", "database_path", fallback="data/seewhozthere.db")
 
 # Scheduler settings
 SCHEDULER_ENABLED = config.getboolean("SCHEDULER", "enabled", fallback=False)
