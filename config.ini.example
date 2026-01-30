@@ -1,0 +1,44 @@
+[GENERAL]
+# Your timezone (e.g., America/New_York, Europe/London, Asia/Kolkata, UTC)
+# NOTE: Do NOT use quotes around values in .ini files
+timezone = UTC
+
+# Port for the web server
+port = 7222
+
+# Database file path (relative to project root)
+database_path = data/seewhozthere.db
+
+[SCHEDULER]
+# Enable daily summary notifications
+enabled = false
+
+# Time to send daily summary (24-hour format, HH:MM)
+send_time = 20:00
+
+# Notification service: telegram or email
+service = telegram
+
+[TELEGRAM]
+# Telegram bot token (get from @BotFather)
+# Leave empty until you set up a bot
+bot_token = 
+
+# Your Telegram chat ID
+chat_id = 
+
+[EMAIL]
+# Email settings (for future use)
+smtp_server = smtp.gmail.com
+smtp_port = 587
+sender_email = 
+sender_password = 
+recipient_email = 
+
+[CAMERAS]
+# Add your camera RTSP streams here
+# Format: camera_name = rtsp://username:password@ip:port/stream
+# NOTE: Do NOT use quotes around the RTSP URLs
+# Example:
+# front_door = rtsp://admin:password@192.168.1.100:554/stream1
+# driveway = rtsp://admin:password@192.168.1.101:554/stream1
