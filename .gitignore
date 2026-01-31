@@ -31,3 +31,5 @@ docker-compose.override.yml
 data/
 
 .git.credentials
+# Test output files
+test_output/
