@@ -64,7 +64,7 @@ def main():
     print("=" * 60)
     
     db = get_db()
-    stats = db.get_stats()
+    stats = db.get_statistics()
     
     print(f"\n📊 Database Statistics:")
     print(f"   Total Sightings: {stats['total_sightings']}")
