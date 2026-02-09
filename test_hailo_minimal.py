@@ -46,12 +46,12 @@ def test_hailo_minimal():
         print("\n5. Creating vstream parameters")
         input_vstreams_params = hpf.InputVStreamParams.make_from_network_group(
             network_group,
-            quantized=False,
+            quantized=True,
             format_type=hpf.FormatType.UINT8
         )
         output_vstreams_params = hpf.OutputVStreamParams.make_from_network_group(
             network_group,
-            quantized=False,
+            quantized=True,
             format_type=hpf.FormatType.UINT8
         )
         print("   ✅ VStream parameters created")
@@ -145,12 +145,12 @@ def test_with_camera():
         
         input_vstreams_params = hpf.InputVStreamParams.make_from_network_group(
             network_group,
-            quantized=False,
+            quantized=True,
             format_type=hpf.FormatType.UINT8
         )
         output_vstreams_params = hpf.OutputVStreamParams.make_from_network_group(
             network_group,
-            quantized=False,
+            quantized=True,
             format_type=hpf.FormatType.UINT8
         )
         
