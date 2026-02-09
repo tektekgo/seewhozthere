@@ -28,6 +28,7 @@ import queue
 
 from app.config import CAMERAS, TIMEZONE
 from app.database import get_db
+from app.hailo_face_detector_v2 import create_face_detector
 
 
 class HailoProcessor:
@@ -58,8 +59,17 @@ class HailoProcessor:
         self.snapshot_dir = "data/snapshots"
         os.makedirs(self.snapshot_dir, exist_ok=True)
         
+        # Initialize face detector with Hailo support
+        model_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'retinaface_mobilenet_v1.hef')
+        self.face_detector = create_face_detector(
+            model_path=model_path,
+            confidence_threshold=self.confidence_threshold,
+            use_hailo=self.hailo_available
+        )
+        
         print(f"[HailoProcessor] Initialized")
         print(f"[HailoProcessor] Hailo device available: {self.hailo_available}")
+        print(f"[HailoProcessor] Face detector: {type(self.face_detector).__name__}")
     
     def _check_hailo_device(self) -> bool:
         """
@@ -176,7 +186,6 @@ class HailoProcessor:
         Detect faces using Hailo AI HAT+.
         
         This uses the Hailo accelerator for high-performance face detection.
-        Currently uses rpicam-apps with Hailo post-processing.
         
         Args:
             frame: OpenCV frame (BGR format)
@@ -184,15 +193,7 @@ class HailoProcessor:
         Returns:
             List of face bounding boxes as (x, y, w, h)
         """
-        # TODO: Implement Hailo-specific face detection
-        # For now, fall back to OpenCV
-        # Future implementation will use:
-        # - hailo-tappas-core for model loading
-        # - rpicam-apps-hailo-postprocess for integration
-        # - Pre-trained face detection models from Hailo Model Zoo
-        
-        print("[HailoProcessor] Hailo face detection not yet implemented, using OpenCV fallback")
-        return self._detect_faces_opencv(frame)
+        return self.face_detector.detect_faces(frame)
     
     def _save_snapshot(self, frame: np.ndarray, camera_name: str, timestamp: datetime) -> str:
         """
