@@ -28,7 +28,7 @@ import queue
 
 from app.config import CAMERAS, TIMEZONE
 from app.database import get_db
-from app.hailo_face_detector_v2 import create_face_detector
+from app.hailo_face_detector_v3 import create_face_detector
 
 
 class HailoProcessor:
