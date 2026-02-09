@@ -83,6 +83,18 @@ class HailoFaceDetectorComplete:
         self.input_height = self.input_shape[0]
         self.input_width = self.input_shape[1]
         
+        # Create vstream parameters once (not per frame!)
+        self.input_vstreams_params = hpf.InputVStreamParams.make_from_network_group(
+            self.network_group,
+            quantized=False,
+            format_type=hpf.FormatType.UINT8
+        )
+        self.output_vstreams_params = hpf.OutputVStreamParams.make_from_network_group(
+            self.network_group,
+            quantized=False,
+            format_type=hpf.FormatType.FLOAT32
+        )
+        
         # Initialize post-processor
         self.postprocessor = RetinaFacePostProcessor(
             input_width=self.input_width,
@@ -135,25 +147,14 @@ class HailoFaceDetectorComplete:
         # Preprocess frame
         input_data = self.preprocess(frame)
         
-        # Prepare input for inference
-        input_dict = {self.input_vstream_info.name: np.expand_dims(input_data, axis=0)}
-        
-        # Create vstream parameters
-        input_vstreams_params = hpf.InputVStreamParams.make_from_network_group(
-            self.network_group,
-            quantized=False,
-            format_type=hpf.FormatType.UINT8
-        )
-        output_vstreams_params = hpf.OutputVStreamParams.make_from_network_group(
-            self.network_group,
-            quantized=False,
-            format_type=hpf.FormatType.FLOAT32
-        )
+        # Prepare input for inference (add batch dimension)
+        input_batch = np.expand_dims(input_data, axis=0)
+        input_dict = {self.input_vstream_info.name: input_batch}
         
         # Run inference (THIS IS WHERE HAILO SHINES!)
         inference_start = time.time()
         with self.network_group.activate(self.network_group_params):
-            with hpf.InferVStreams(self.network_group, input_vstreams_params, output_vstreams_params) as infer_pipeline:
+            with hpf.InferVStreams(self.network_group, self.input_vstreams_params, self.output_vstreams_params) as infer_pipeline:
                 results = infer_pipeline.infer(input_dict)
         inference_time = (time.time() - inference_start) * 1000
         
