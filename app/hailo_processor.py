@@ -28,7 +28,7 @@ import queue
 
 from app.config import CAMERAS, TIMEZONE
 from app.database import get_db
-from app.hailo_face_detector_v3 import create_face_detector
+from app.hailo_face_detector_v4 import create_face_detector
 
 
 class HailoProcessor:
@@ -66,6 +66,9 @@ class HailoProcessor:
             confidence_threshold=self.confidence_threshold,
             use_hailo=self.hailo_available
         )
+        
+        # Start the face detector pipeline
+        self.face_detector.start()
         
         print(f"[HailoProcessor] Initialized")
         print(f"[HailoProcessor] Hailo device available: {self.hailo_available}")
@@ -329,6 +332,10 @@ class HailoProcessor:
             print(f"[HailoProcessor] Stopped thread for {camera_name}")
         
         self.camera_threads.clear()
+        
+        # Stop the face detector pipeline
+        self.face_detector.stop()
+        
         print("[HailoProcessor] Stopped")
     
     def get_status(self) -> Dict:
