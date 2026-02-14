@@ -182,6 +182,10 @@ class Database:
             return dict(row)
         return None
     
+    def get_visitor(self, visitor_id: int) -> Optional[Dict]:
+        """Alias for get_visitor_by_id for compatibility"""
+        return self.get_visitor_by_id(visitor_id)
+    
     def get_all_visitors(self) -> List[Dict]:
         """
         Get all known visitors.
