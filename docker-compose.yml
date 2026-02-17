@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  seewhozthere:
+    build: .
+    container_name: seewhozthere
+    restart: unless-stopped
+    ports:
+      - "7222:7222"
+    volumes:
+      # Persist database and snapshots
+      - ./data:/app/data
+      # Mount config file
+      - ./config.ini:/app/config.ini:ro
+    devices:
+      # Access to Hailo device (if available)
+      - /dev/hailo0:/dev/hailo0
+    environment:
+      - TZ=America/New_York
+      - PYTHONUNBUFFERED=1
+    networks:
+      - seewhozthere-network
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:7222/api/status')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  seewhozthere-network:
+    driver: bridge
