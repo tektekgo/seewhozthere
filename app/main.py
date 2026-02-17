@@ -23,6 +23,7 @@ from app.config import TIMEZONE, PORT
 from app.database import get_db
 from app.face_recognition_engine import get_face_recognition_engine
 from app.hailo_processor_v2 import get_processor
+from app.analytics import get_analytics
 
 
 # --- Application Setup ---
@@ -36,6 +37,11 @@ PROJECT_ROOT = APP_DIR.parent
 # Mount static directories
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 app.mount("/data", StaticFiles(directory=PROJECT_ROOT / "data"), name="data")
+
+# Mount React dashboard (if built)
+dashboard_dir = APP_DIR / "static" / "dashboard"
+if dashboard_dir.exists():
+    app.mount("/dashboard", StaticFiles(directory=dashboard_dir, html=True), name="dashboard")
 
 # Setup Jinja2 for HTML templating
 templates = Jinja2Templates(directory=APP_DIR / "templates")
@@ -440,6 +446,57 @@ async def get_system_status():
             "running": False,
             "error": str(e)
         }
+
+
+# --- Analytics API Endpoints ---
+
+@app.get("/api/analytics/stats")
+async def get_analytics_stats():
+    """Get overall statistics for dashboard."""
+    analytics = get_analytics()
+    return analytics.get_stats()
+
+
+@app.get("/api/analytics/hourly")
+async def get_hourly_activity():
+    """Get hourly activity breakdown."""
+    analytics = get_analytics()
+    return {"hourly": analytics.get_hourly_activity()}
+
+
+@app.get("/api/analytics/known-unknown")
+async def get_known_unknown():
+    """Get known vs unknown visitor count."""
+    analytics = get_analytics()
+    return analytics.get_known_vs_unknown()
+
+
+@app.get("/api/analytics/weekly")
+async def get_weekly_trend():
+    """Get weekly visitor trend."""
+    analytics = get_analytics()
+    return {"weekly": analytics.get_weekly_trend()}
+
+
+@app.get("/api/analytics/cameras")
+async def get_camera_activity():
+    """Get activity breakdown by camera."""
+    analytics = get_analytics()
+    return {"cameras": analytics.get_camera_activity()}
+
+
+@app.get("/api/analytics/top-visitors")
+async def get_top_visitors():
+    """Get top visitors by sighting count."""
+    analytics = get_analytics()
+    return {"visitors": analytics.get_top_visitors()}
+
+
+@app.get("/api/analytics/heatmap")
+async def get_heatmap():
+    """Get heatmap data for peak hours visualization."""
+    analytics = get_analytics()
+    return {"heatmap": analytics.get_heatmap_data()}
 
 
 # --- Main Execution ---
