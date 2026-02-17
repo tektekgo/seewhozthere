@@ -1,0 +1,27 @@
+[Unit]
+Description=SeeWhozThere Face Detection and Recognition Service
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/seewhozthere
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 /home/pi/seewhozthere/run_service.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/pi/seewhozthere/data/service.log
+StandardError=append:/home/pi/seewhozthere/data/service.log
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
