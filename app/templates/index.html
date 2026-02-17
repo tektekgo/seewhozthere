@@ -66,6 +66,12 @@
                 
                 <!-- Action Buttons -->
                 <div class="flex items-center space-x-3">
+                    <!-- System Status Indicator -->
+                    <div class="hidden md:flex items-center space-x-2 px-3 py-1 rounded-lg" :class="systemStatus.running ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'">
+                        <div class="w-2 h-2 rounded-full" :class="systemStatus.running ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></div>
+                        <span class="text-xs font-medium" :class="systemStatus.running ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'" x-text="systemStatus.running ? 'Active' : 'Offline'"></span>
+                    </div>
+                    
                     <button @click="showAddPerson = true" class="hidden md:flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
                         <i class="fas fa-user-plus mr-2"></i>Add Person
                     </button>
@@ -362,6 +368,11 @@
                     message: '',
                     type: 'success'
                 },
+                systemStatus: {
+                    running: false,
+                    hailo_available: false,
+                    active_cameras: 0
+                },
                 
                 init() {
                     // Watch dark mode
@@ -381,6 +392,23 @@
                     
                     // Load all people
                     this.loadAllPeople();
+                    
+                    // Load system status
+                    this.loadSystemStatus();
+                    
+                    // Poll system status every 10 seconds
+                    setInterval(() => this.loadSystemStatus(), 10000);
+                },
+                
+                async loadSystemStatus() {
+                    try {
+                        const response = await fetch('/api/status');
+                        const data = await response.json();
+                        this.systemStatus = data;
+                    } catch (error) {
+                        console.error('Error loading system status:', error);
+                        this.systemStatus.running = false;
+                    }
                 },
                 
                 async loadAllPeople() {

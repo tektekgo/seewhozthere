@@ -386,6 +386,40 @@ async def get_unknown_sightings(limit: int = 50):
     return {"sightings": result}
 
 
+@app.delete("/api/sightings/{sighting_id}")
+async def delete_sighting(sighting_id: int):
+    """Delete a sighting and its snapshot."""
+    db = get_db()
+    
+    # Get sighting to find snapshot path
+    conn = db._get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT snapshot_path FROM sightings WHERE id = ?", (sighting_id,))
+    row = cursor.fetchone()
+    
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Sighting not found")
+    
+    snapshot_path = row['snapshot_path']
+    
+    # Delete from database
+    cursor.execute("DELETE FROM sightings WHERE id = ?", (sighting_id,))
+    conn.commit()
+    conn.close()
+    
+    # Delete snapshot file if it exists
+    if snapshot_path:
+        full_path = PROJECT_ROOT / snapshot_path
+        if full_path.exists():
+            try:
+                full_path.unlink()
+            except Exception as e:
+                print(f"Error deleting snapshot: {e}")
+    
+    return {"success": True, "message": "Sighting deleted"}
+
+
 @app.get("/api/status")
 async def get_system_status():
     """Get current system status."""
