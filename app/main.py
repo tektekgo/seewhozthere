@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI, Request, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, Request, File, UploadFile, Form, HTTPException, Body
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import cv2
@@ -476,6 +476,44 @@ async def delete_sighting(sighting_id: int):
                 print(f"Error deleting snapshot: {e}")
     
     return {"success": True, "message": "Sighting deleted"}
+
+
+@app.delete("/api/sightings")
+async def bulk_delete_sightings(ids: list[int] = Body(..., embed=True)):
+    """Delete multiple sightings and their snapshot files."""
+    if not ids:
+        return {"success": True, "deleted": 0}
+
+    db = get_db()
+    conn = db._get_connection()
+    cursor = conn.cursor()
+
+    # Fetch snapshot paths for all requested IDs
+    placeholders = ",".join("?" for _ in ids)
+    cursor.execute(f"SELECT id, snapshot_path FROM sightings WHERE id IN ({placeholders})", ids)
+    rows = cursor.fetchall()
+
+    found_ids = [row['id'] for row in rows]
+    snapshot_paths = [row['snapshot_path'] for row in rows if row['snapshot_path']]
+
+    # Delete from database
+    cursor.execute(f"DELETE FROM sightings WHERE id IN ({placeholders})", found_ids)
+    conn.commit()
+    conn.close()
+
+    # Delete snapshot files
+    for snapshot_path in snapshot_paths:
+        if snapshot_path.startswith('data/'):
+            full_path = PROJECT_ROOT / snapshot_path
+        else:
+            full_path = PROJECT_ROOT / 'data' / 'snapshots' / os.path.basename(snapshot_path)
+        if full_path.exists():
+            try:
+                full_path.unlink()
+            except Exception as e:
+                print(f"Error deleting snapshot {snapshot_path}: {e}")
+
+    return {"success": True, "deleted": len(found_ids)}
 
 
 @app.get("/api/status")

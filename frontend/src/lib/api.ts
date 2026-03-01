@@ -83,6 +83,15 @@ export const api = {
     const res = await fetch(`${baseUrl}/api/sightings/${sightingId}`, { method: "DELETE" });
     return res.json();
   },
+  bulkDeleteSightings: async (ids: number[]) => {
+    const baseUrl = getApiUrl();
+    const res = await fetch(`${baseUrl}/api/sightings`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    return res.json();
+  },
 
   // --- Camera config ---
   getCamerasConfig: () => fetchFromApi("/api/config/cameras", { cameras: {} }),
