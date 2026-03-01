@@ -19,7 +19,7 @@ from typing import Optional
 from fastapi import FastAPI, Request, File, UploadFile, Form, HTTPException, Body, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 import cv2
 
 # Import our configuration settings
