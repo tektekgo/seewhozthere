@@ -1,42 +1,51 @@
 import configparser
 from pathlib import Path
 
-# Build the path to the config file (it's in the parent directory)
-config_path = Path(__file__).parent.parent / "config.ini"
+# Build the path to the config file (it's in the parent directory of app/)
+CONFIG_PATH = Path(__file__).parent.parent / "config.ini"
 
-# Create a config parser object
-config = configparser.ConfigParser()
 
-# Check if the config file exists before trying to read it
-if not config_path.exists():
-    raise FileNotFoundError(
-        f"Error: Configuration file not found at {config_path}. "
-        "Please create it from the template."
-    )
+def _load_config() -> configparser.RawConfigParser:
+    """Load and return the config file. Uses RawConfigParser to avoid
+    interpolation issues with special characters (%, $, etc.) in RTSP URLs."""
+    config = configparser.RawConfigParser()
+    if not CONFIG_PATH.exists():
+        raise FileNotFoundError(
+            f"Error: Configuration file not found at {CONFIG_PATH}. "
+            "Please create it from the template."
+        )
+    config.read(str(CONFIG_PATH))
+    return config
 
-config.read(config_path)
 
-# --- Now we can export settings for the rest of the app to use ---
+def get_cameras() -> dict:
+    """Read cameras fresh from config.ini each time. Call this at service
+    start-up so a restart always picks up the latest camera list."""
+    config = _load_config()
+    if config.has_section("CAMERAS"):
+        return dict(config.items("CAMERAS"))
+    return {}
+
+
+# Load once at import time for settings that don't change at runtime
+_config = _load_config()
+
+# --- Exported settings ---
 
 # General settings
-TIMEZONE = config.get("GENERAL", "timezone", fallback="UTC")
-PORT = config.getint("GENERAL", "port", fallback=7222)
-DATABASE_PATH = config.get("GENERAL", "database_path", fallback="data/seewhozthere.db")
+TIMEZONE = _config.get("GENERAL", "timezone", fallback="UTC")
+PORT = _config.getint("GENERAL", "port", fallback=7222)
+DATABASE_PATH = _config.get("GENERAL", "database_path", fallback="data/seewhozthere.db")
 
 # Scheduler settings
-SCHEDULER_ENABLED = config.getboolean("SCHEDULER", "enabled", fallback=False)
-SCHEDULER_SEND_TIME = config.get("SCHEDULER", "send_time", fallback="20:00")
-SCHEDULER_SERVICE = config.get("SCHEDULER", "service", fallback="telegram")
+SCHEDULER_ENABLED = _config.getboolean("SCHEDULER", "enabled", fallback=False)
+SCHEDULER_SEND_TIME = _config.get("SCHEDULER", "send_time", fallback="20:00")
+SCHEDULER_SERVICE = _config.get("SCHEDULER", "service", fallback="telegram")
 
 # Telegram settings
-TELEGRAM_BOT_TOKEN = config.get("TELEGRAM", "bot_token", fallback="")
-TELEGRAM_CHAT_ID = config.get("TELEGRAM", "chat_id", fallback="")
+TELEGRAM_BOT_TOKEN = _config.get("TELEGRAM", "bot_token", fallback="")
+TELEGRAM_CHAT_ID = _config.get("TELEGRAM", "chat_id", fallback="")
 
-# Camera settings
-# This reads the entire [CAMERAS] section into a dictionary
-CAMERAS = dict(config.items("CAMERAS"))
-
-# Example of how to use it elsewhere in the app:
-# from app.config import CAMERAS
-# for camera_name, url in CAMERAS.items():
-#     print(f"Found camera: {camera_name} with URL: {url}")
+# Camera settings — loaded at import time for backwards compatibility.
+# NOTE: Use get_cameras() in long-running services so a restart picks up changes.
+CAMERAS = get_cameras()

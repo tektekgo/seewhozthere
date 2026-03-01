@@ -34,7 +34,7 @@ import threading
 import queue
 import traceback
 
-from app.config import CAMERAS, TIMEZONE
+from app.config import get_cameras, TIMEZONE
 from app.database import get_db
 from app.hailo_face_detector_v4 import create_face_detector
 from app.face_recognition_engine import get_face_recognition_engine
@@ -438,8 +438,16 @@ class HailoProcessorV2:
         self.running = True
         self.stats['start_time'] = datetime.now()
         
+        # Read cameras fresh from config.ini at start time so a service
+        # restart always picks up the latest camera list.
+        cameras = get_cameras()
+        
+        if not cameras:
+            print("[HailoProcessorV2] WARNING: No cameras configured in config.ini [CAMERAS] section")
+            print("[HailoProcessorV2] Add cameras via the Settings page or edit config.ini, then restart the service")
+        
         # Start a thread for each camera
-        for camera_name, rtsp_url in CAMERAS.items():
+        for camera_name, rtsp_url in cameras.items():
             thread = threading.Thread(
                 target=self._process_camera_stream,
                 args=(camera_name, rtsp_url),
@@ -448,7 +456,7 @@ class HailoProcessorV2:
             thread.start()
             self.camera_threads[camera_name] = thread
         
-        print(f"[HailoProcessorV2] Started processing {len(CAMERAS)} camera(s)")
+        print(f"[HailoProcessorV2] Started processing {len(cameras)} camera(s)")
     
     def stop(self):
         """Stop processing all cameras"""

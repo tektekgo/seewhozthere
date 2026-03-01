@@ -5,17 +5,17 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
-WorkingDirectory=/home/pi/seewhozthere
-Environment="PATH=/home/pi/seewhozthere/venv/bin:/usr/local/bin:/usr/bin:/bin"
+User=pimediaadmin
+Group=pimediaadmin
+WorkingDirectory=/home/pimediaadmin/projects/seewhozthere
+Environment="PATH=/home/pimediaadmin/projects/seewhozthere/venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
 Environment="APP_ENV=production"
-ExecStart=/home/pi/seewhozthere/venv/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 7222
+ExecStart=/usr/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 7222
 Restart=always
 RestartSec=5
-StandardOutput=append:/home/pi/seewhozthere/data/web.log
-StandardError=append:/home/pi/seewhozthere/data/web.log
+StandardOutput=append:/home/pimediaadmin/projects/seewhozthere/data/web.log
+StandardError=append:/home/pimediaadmin/projects/seewhozthere/data/web.log
 
 # Security settings
 NoNewPrivileges=true

@@ -5,16 +5,16 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
-WorkingDirectory=/home/pi/seewhozthere
-Environment="PATH=/home/pi/seewhozthere/venv/bin:/usr/local/bin:/usr/bin:/bin"
+User=pimediaadmin
+Group=pimediaadmin
+WorkingDirectory=/home/pimediaadmin/projects/seewhozthere
+Environment="PATH=/home/pimediaadmin/projects/seewhozthere/venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=/home/pi/seewhozthere/venv/bin/python3 /home/pi/seewhozthere/run_service.py
+ExecStart=/usr/bin/python3 /home/pimediaadmin/projects/seewhozthere/run_service.py
 Restart=always
 RestartSec=10
-StandardOutput=append:/home/pi/seewhozthere/data/service.log
-StandardError=append:/home/pi/seewhozthere/data/service.log
+StandardOutput=append:/home/pimediaadmin/projects/seewhozthere/data/service.log
+StandardError=append:/home/pimediaadmin/projects/seewhozthere/data/service.log
 
 # Security settings
 NoNewPrivileges=true
