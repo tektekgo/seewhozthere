@@ -562,6 +562,107 @@ async def get_heatmap_short():
     analytics = get_analytics()
     return analytics.get_heatmap_data()
 
+# --- Camera Configuration API ---
+
+@app.get("/api/config/cameras")
+async def get_cameras_config():
+    """Get current camera configuration from config.ini."""
+    import configparser
+    config = configparser.ConfigParser()
+    config_path = PROJECT_ROOT / "config.ini"
+    if config_path.exists():
+        config.read(str(config_path))
+    cameras = {}
+    if config.has_section("CAMERAS"):
+        for name, url in config.items("CAMERAS"):
+            cameras[name] = url
+    return {"cameras": cameras}
+
+
+@app.post("/api/config/cameras")
+async def save_cameras_config(request: Request):
+    """Save camera configuration to config.ini."""
+    import configparser
+    data = await request.json()
+    cameras = data.get("cameras", {})
+    
+    config = configparser.ConfigParser()
+    config_path = PROJECT_ROOT / "config.ini"
+    
+    # Read existing config to preserve other settings
+    if config_path.exists():
+        config.read(str(config_path))
+    
+    # Ensure required sections exist
+    for section in ["GENERAL", "SCHEDULER", "TELEGRAM", "EMAIL", "CAMERAS"]:
+        if not config.has_section(section):
+            config.add_section(section)
+    
+    # Set defaults if not present
+    if not config.has_option("GENERAL", "timezone"):
+        config.set("GENERAL", "timezone", "UTC")
+    if not config.has_option("GENERAL", "port"):
+        config.set("GENERAL", "port", "7222")
+    if not config.has_option("GENERAL", "database_path"):
+        config.set("GENERAL", "database_path", "data/seewhozthere.db")
+    
+    # Remove all existing camera entries
+    for key in list(config.options("CAMERAS")):
+        config.remove_option("CAMERAS", key)
+    
+    # Add new camera entries
+    for name, url in cameras.items():
+        safe_name = name.strip().lower().replace(" ", "_")
+        if safe_name and url.strip():
+            config.set("CAMERAS", safe_name, url.strip())
+    
+    # Write back to file
+    with open(str(config_path), "w") as f:
+        config.write(f)
+    
+    return {"success": True, "message": f"Saved {len(cameras)} camera(s). Restart the detection service to apply changes."}
+
+
+@app.get("/api/config/general")
+async def get_general_config():
+    """Get general configuration settings."""
+    import configparser
+    config = configparser.ConfigParser()
+    config_path = PROJECT_ROOT / "config.ini"
+    if config_path.exists():
+        config.read(str(config_path))
+    return {
+        "timezone": config.get("GENERAL", "timezone", fallback="UTC"),
+        "port": config.getint("GENERAL", "port", fallback=7222),
+        "scheduler_enabled": config.getboolean("SCHEDULER", "enabled", fallback=False),
+        "telegram_configured": bool(config.get("TELEGRAM", "bot_token", fallback="").strip()),
+    }
+
+
+@app.post("/api/config/general")
+async def save_general_config(request: Request):
+    """Save general configuration settings."""
+    import configparser
+    data = await request.json()
+    
+    config = configparser.ConfigParser()
+    config_path = PROJECT_ROOT / "config.ini"
+    if config_path.exists():
+        config.read(str(config_path))
+    
+    for section in ["GENERAL", "SCHEDULER", "TELEGRAM", "EMAIL", "CAMERAS"]:
+        if not config.has_section(section):
+            config.add_section(section)
+    
+    if "timezone" in data:
+        config.set("GENERAL", "timezone", str(data["timezone"]))
+    
+    with open(str(config_path), "w") as f:
+        config.write(f)
+    
+    return {"success": True, "message": "Settings saved. Restart services to apply changes."}
+
+
 # --- Main Execution ---
 
 def start():

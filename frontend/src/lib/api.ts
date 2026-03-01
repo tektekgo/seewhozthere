@@ -42,4 +42,14 @@ export const api = {
   getTodayVisitors: () => fetchFromApi("/api/today-visitors", mockTodayVisitors),
   getHeatmapData: () => fetchFromApi("/api/heatmap", mockHeatmapData),
   getStatus: () => fetchFromApi("/api/status", defaultStatus),
+  getCamerasConfig: () => fetchFromApi("/api/config/cameras", { cameras: {} }),
+  saveCamerasConfig: async (cameras: Record<string, string>) => {
+    const baseUrl = getApiUrl();
+    const res = await fetch(`${baseUrl}/api/config/cameras`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cameras }),
+    });
+    return res.json();
+  },
 };
