@@ -30,6 +30,8 @@ async function fetchFromApi<T>(endpoint: string, fallback: T): Promise<T> {
   }
 }
 
+const defaultStatus = { running: false, hailo_available: false, active_cameras: 0 };
+
 export const api = {
   getStats: () => fetchFromApi("/api/stats", mockStats),
   getHourlyActivity: () => fetchFromApi("/api/hourly", mockHourlyData),
@@ -39,4 +41,5 @@ export const api = {
   getTopVisitors: () => fetchFromApi("/api/top-visitors", mockTopVisitors),
   getTodayVisitors: () => fetchFromApi("/api/today-visitors", mockTodayVisitors),
   getHeatmapData: () => fetchFromApi("/api/heatmap", mockHeatmapData),
+  getStatus: () => fetchFromApi("/api/status", defaultStatus),
 };

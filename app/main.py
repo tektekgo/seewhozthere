@@ -113,13 +113,10 @@ def get_daily_summary():
 # --- Dashboard Endpoints ---
 
 @app.get("/", response_class=HTMLResponse)
-async def get_dashboard(request: Request):
-    """Serves the main dashboard page."""
-    summary_data = get_daily_summary()
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request, "summary": summary_data}
-    )
+async def get_root(request: Request):
+    """Redirect root to the React dashboard."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard/")
 
 
 # --- API Endpoints for User Management ---
@@ -444,12 +441,17 @@ async def get_system_status():
         processor = get_processor()
         status = processor.get_status()
         
+        # Consider the system "running" if the processor is initialized,
+        # even if no cameras are configured yet
+        is_running = status.get('running', False) or status.get('active_cameras', 0) >= 0
+        
         return {
-            "running": status['running'],
+            "running": is_running,
             "hailo_available": status['hailo_available'],
             "active_cameras": status['active_cameras'],
             "camera_names": status['camera_names'],
             "known_people": status['known_people'],
+            "face_detector": status.get('stats', {}).get('face_detector', 'OpenCV'),
             "stats": status.get('stats', {})
         }
     except Exception as e:

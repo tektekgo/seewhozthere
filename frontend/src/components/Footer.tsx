@@ -1,37 +1,50 @@
-import { APP_VERSION } from "@/lib/version";
+import { APP_VERSION, BUILD_DATE, BUILD_NUMBER } from "@/lib/version";
 import logo from "@/assets/logo.png";
 
 export function Footer() {
+  const year = new Date().getFullYear();
+
   return (
-    <footer className="border-t py-6 mt-12">
-      <div className="container flex flex-col items-center gap-3 text-sm text-muted-foreground sm:flex-row sm:justify-between">
-        <div className="flex items-center gap-2">
-          <img src={logo} alt="SeeWhozThere" className="h-5 w-5 rounded" />
-          <span className="font-medium">SeeWhozThere</span>
-          <span className="text-xs opacity-60">v{APP_VERSION}</span>
+    <footer className="border-t bg-card/50 backdrop-blur-sm py-5 mt-12">
+      <div className="container">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-muted-foreground">
+
+          {/* Left: Branding */}
+          <div className="flex items-center gap-2">
+            <img src={logo} alt="SeeWhozThere" className="h-5 w-5 rounded" />
+            <div className="flex flex-col leading-tight">
+              <span className="font-semibold text-foreground/90 text-sm">SeeWhozThere</span>
+              <span className="text-xs opacity-60">Smart Home Security</span>
+            </div>
+          </div>
+
+          {/* Center: Creator */}
+          <div className="text-center text-xs">
+            <p>
+              Designed &amp; Created by{" "}
+              <span className="font-semibold text-foreground/80">Sujit G</span>
+            </p>
+            <p>
+              &copy; {year}{" "}
+              <a
+                href="https://techsilon.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary hover:underline"
+              >
+                Techsilon
+              </a>
+              {" "}· All rights reserved
+            </p>
+          </div>
+
+          {/* Right: Version */}
+          <div className="text-right text-xs opacity-70 font-mono">
+            <p>v{APP_VERSION} · Build {BUILD_NUMBER}</p>
+            <p>{BUILD_DATE}</p>
+          </div>
+
         </div>
-        <p className="text-center">
-          A product by{" "}
-          <a
-            href="https://ai-focus.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-primary hover:underline"
-          >
-            TechSilon Solutions
-          </a>
-        </p>
-        <p className="text-center text-xs opacity-70">
-          Crafted by <span className="font-medium text-foreground/80">Sujit</span>
-        </p>
-        <a
-          href="https://github.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-foreground transition-colors"
-        >
-          GitHub
-        </a>
       </div>
     </footer>
   );

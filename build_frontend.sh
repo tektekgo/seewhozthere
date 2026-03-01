@@ -49,8 +49,15 @@ else
     echo ""
 fi
 
+# Generate build number and date
+BUILD_DATE=$(date +"%Y-%m-%d %H:%M")
+BUILD_NUMBER=$(date +"%Y%m%d").$(date +"%H%M")
+export VITE_BUILD_NUMBER="${BUILD_NUMBER}"
+export VITE_BUILD_DATE="${BUILD_DATE}"
+
 # Build the React app
 echo -e "${BLUE}[2/3] Building React app...${NC}"
+echo -e "  Build: ${BUILD_NUMBER} (${BUILD_DATE})"
 npm run build
 echo -e "${GREEN}✓ Build complete${NC}"
 echo ""
