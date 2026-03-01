@@ -133,14 +133,14 @@ export function Navbar() {
   const aiOn = status?.hailo_available === true;
 
   const cameraLabel = cameraOn
-    ? `${status!.active_cameras} camera${status!.active_cameras !== 1 ? "s" : ""} streaming`
-    : "No cameras streaming";
+    ? `${status!.active_cameras} camera${status!.active_cameras !== 1 ? "s" : ""} configured in config.ini`
+    : "No cameras configured — add one in Settings → Cameras";
   const detectionLabel = detectionOn
-    ? "Detection service running"
-    : "Detection service stopped — go to Settings → Service to start it";
+    ? "Face detection app is running (seewhozthere service)"
+    : "Face detection app is stopped — go to Settings → App Control to start it";
   const aiLabel = aiOn
-    ? "Hailo AI HAT+ active (hardware acceleration)"
-    : "AI engine not detected";
+    ? "Hailo AI HAT+ detected — hardware-accelerated face detection active"
+    : "Hailo AI chip not detected — using software (OpenCV) detection";
 
   return (
     <>
@@ -195,7 +195,7 @@ export function Navbar() {
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs text-xs">
-                    <p className="font-semibold mb-0.5">Camera</p>
+                    <p className="font-semibold mb-0.5">Camera Config</p>
                     <p>{cameraLabel}</p>
                   </TooltipContent>
                 </Tooltip>
@@ -209,12 +209,12 @@ export function Navbar() {
                       <StatusDot on={detectionOn} />
                       <Activity className={`h-3.5 w-3.5 ${detectionOn ? "text-green-500" : "text-red-500"}`} />
                       <span className={`text-[11px] font-medium hidden md:inline ${detectionOn ? "text-green-500" : "text-red-500"}`}>
-                        {detectionOn ? "Active" : "Stopped"}
+                        {detectionOn ? "Running" : "Stopped"}
                       </span>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs text-xs">
-                    <p className="font-semibold mb-0.5">Detection Service</p>
+                    <p className="font-semibold mb-0.5">Detection App</p>
                     <p>{detectionLabel}</p>
                   </TooltipContent>
                 </Tooltip>

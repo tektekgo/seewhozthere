@@ -518,28 +518,63 @@ async def bulk_delete_sightings(ids: list[int] = Body(..., embed=True)):
 
 @app.get("/api/status")
 async def get_system_status():
-    """Get current system status."""
+    """Get current system status.
+    
+    The web server and the detection service are separate OS processes.
+    We determine status by:
+    - detection_running: systemd service 'seewhozthere' is active (cross-process check)
+    - hailo_available: check for Hailo device file (cross-process, hardware-level)
+    - active_cameras: count cameras configured in config.ini (not in-memory state)
+    - known_people: from the shared SQLite database
+    """
+    import subprocess
+    from app.config import get_cameras
+    
+    # 1. Check if detection service (seewhozthere systemd unit) is running
+    detection_running = False
     try:
-        processor = get_processor()
-        status = processor.get_status()
-        
-        # System is "running" only if the processor is actively running AND has cameras
-        is_running = status.get('running', False) and status.get('active_cameras', 0) > 0
-        
-        return {
-            "running": is_running,
-            "hailo_available": status['hailo_available'],
-            "active_cameras": status['active_cameras'],
-            "camera_names": status['camera_names'],
-            "known_people": status['known_people'],
-            "face_detector": status.get('stats', {}).get('face_detector', 'OpenCV'),
-            "stats": status.get('stats', {})
-        }
-    except Exception as e:
-        return {
-            "running": False,
-            "error": str(e)
-        }
+        result = subprocess.run(
+            ["systemctl", "is-active", "seewhozthere"],
+            capture_output=True, text=True, timeout=5
+        )
+        detection_running = result.stdout.strip() == "active"
+    except Exception:
+        detection_running = False
+    
+    # 2. Check Hailo hardware availability (device file exists)
+    hailo_available = False
+    try:
+        import os
+        hailo_available = (
+            os.path.exists("/dev/hailo0") or
+            os.path.exists("/dev/hailo") or
+            len([f for f in os.listdir("/dev") if f.startswith("hailo")]) > 0
+        )
+    except Exception:
+        hailo_available = False
+    
+    # 3. Count configured cameras from config.ini (shared file, accessible to both processes)
+    cameras = get_cameras()
+    active_cameras = len(cameras)
+    camera_names = list(cameras.keys())
+    
+    # 4. Known people count from shared database
+    known_people = 0
+    try:
+        db = get_db()
+        stats = db.get_statistics()
+        known_people = stats.get('total_visitors', 0)
+    except Exception:
+        known_people = 0
+    
+    return {
+        "running": detection_running,
+        "hailo_available": hailo_available,
+        "active_cameras": active_cameras,
+        "camera_names": camera_names,
+        "known_people": known_people,
+        "face_detector": "Hailo AI" if hailo_available else "OpenCV"
+    }
 
 
 # --- Analytics API Endpoints ---

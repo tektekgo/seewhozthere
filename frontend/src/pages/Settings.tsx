@@ -131,11 +131,11 @@ const Settings = () => {
           {status ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Detection</p>
+                <p className="text-xs text-muted-foreground">Detection App</p>
                 <div className="flex items-center gap-1.5">
                   {status.running
-                    ? <><Wifi className="h-3.5 w-3.5 text-green-500" /><span className="text-sm font-medium text-green-500">Online</span></>
-                    : <><WifiOff className="h-3.5 w-3.5 text-red-500" /><span className="text-sm font-medium text-red-500">Offline</span></>}
+                    ? <><Wifi className="h-3.5 w-3.5 text-green-500" /><span className="text-sm font-medium text-green-500">Running</span></>
+                    : <><WifiOff className="h-3.5 w-3.5 text-red-500" /><span className="text-sm font-medium text-red-500">Stopped</span></>}
                 </div>
               </div>
               <div className="space-y-1">
@@ -149,7 +149,7 @@ const Settings = () => {
                 </div>
               </div>
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Active Cameras</p>
+                <p className="text-xs text-muted-foreground">Cameras Configured</p>
                 <p className="text-sm font-medium">{status.active_cameras}</p>
               </div>
               <div className="space-y-1">
@@ -167,7 +167,7 @@ const Settings = () => {
             <Camera className="h-3.5 w-3.5" />Cameras
           </TabsTrigger>
           <TabsTrigger value="service" className="flex items-center gap-1.5">
-            <Terminal className="h-3.5 w-3.5" />Service
+            <Terminal className="h-3.5 w-3.5" />App Control
           </TabsTrigger>
           <TabsTrigger value="about" className="flex items-center gap-1.5">
             <Shield className="h-3.5 w-3.5" />About
@@ -247,19 +247,18 @@ const Settings = () => {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Terminal className="h-4 w-4" />Detection Service Control
+                <Terminal className="h-4 w-4" />Detection App Control
               </CardTitle>
               <CardDescription className="text-xs">
-                Manage the face detection background service (systemd). The service must be installed first via{" "}
-                <code className="bg-muted px-1 rounded">./install_service.sh</code>.
+                Start, stop, or restart the face detection app. It runs as a background service (systemd unit: <code className="bg-muted px-1 rounded">seewhozthere</code>). Install it first via <code className="bg-muted px-1 rounded">./install_service.sh</code>.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Service Status */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
                 <div className="space-y-0.5">
-                  <p className="text-sm font-medium">systemd Service</p>
-                  <p className="text-xs text-muted-foreground">seewhozthere.service</p>
+                  <p className="text-sm font-medium">Detection App</p>
+                  <p className="text-xs text-muted-foreground">seewhozthere (systemd service)</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {serviceStatus ? (
