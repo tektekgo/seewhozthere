@@ -11,7 +11,7 @@ export function Footer() {
 
           {/* Left: Branding */}
           <div className="flex items-center gap-2">
-            <img src={logo} alt="SeeWhozThere" className="h-5 w-5 rounded" />
+            <img src={logo} alt="SeeWhozThere" className="h-6 w-6 object-contain" />
             <div className="flex flex-col leading-tight">
               <span className="font-semibold text-foreground/90 text-sm">SeeWhozThere</span>
               <span className="text-xs opacity-60">Smart Home Security</span>
