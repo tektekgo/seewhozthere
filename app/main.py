@@ -22,17 +22,28 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 import cv2
 
+from contextlib import asynccontextmanager
+
 # Import our configuration settings
 from app.config import TIMEZONE, PORT, SECURITY_PASSPHRASE, SECURITY_SESSION_HOURS, SECURITY_LOGIN_ENABLED
 from app.database import get_db
 from app.face_recognition_engine import get_face_recognition_engine
 from app.hailo_processor_v2 import get_processor
 from app.analytics import get_analytics
+from app.telegram_notifier import start_scheduler, stop_scheduler
 
 
 # --- Application Setup ---
 
-app = FastAPI(title="SeeWhozThere v2")
+@asynccontextmanager
+async def lifespan(app_instance):
+    """Start background services on startup and clean up on shutdown."""
+    start_scheduler()
+    yield
+    stop_scheduler()
+
+
+app = FastAPI(title="SeeWhozThere v2", lifespan=lifespan)
 
 # --- Auth / Session Helpers ---
 

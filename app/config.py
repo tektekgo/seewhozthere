@@ -52,6 +52,10 @@ SECURITY_SESSION_HOURS = _config.getint("SECURITY", "session_hours", fallback=24
 # Login is enabled whenever a non-empty passphrase is set
 SECURITY_LOGIN_ENABLED = bool(SECURITY_PASSPHRASE.strip())
 
+# Detection settings
+DETECTION_COOLDOWN_SECONDS = _config.getfloat("DETECTION", "snapshot_cooldown_seconds", fallback=15.0)
+DETECTION_CONFIDENCE_THRESHOLD = _config.getfloat("DETECTION", "confidence_threshold", fallback=0.6)
+
 # Camera settings — loaded at import time for backwards compatibility.
 # NOTE: Use get_cameras() in long-running services so a restart picks up changes.
 CAMERAS = get_cameras()

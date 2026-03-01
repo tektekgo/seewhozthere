@@ -44,6 +44,17 @@ passphrase = changeme
 # How long a login session lasts in hours before the user must log in again
 session_hours = 24
 
+[DETECTION]
+# How many seconds to wait before saving another snapshot of the same camera.
+# Lower values = more photos per person per visit (e.g., 2 = up to 30 photos/minute).
+# Higher values = fewer photos (e.g., 30 = one photo per 30 seconds per camera).
+# Recommended: 15-30 seconds for normal use.
+snapshot_cooldown_seconds = 15
+
+# Minimum confidence score (0.0 to 1.0) for a face detection to be recorded.
+# Higher values = fewer false positives but may miss some real faces.
+confidence_threshold = 0.6
+
 [CAMERAS]
 # Add your camera RTSP streams here
 # Format: camera_name = rtsp://username:password@ip:port/stream

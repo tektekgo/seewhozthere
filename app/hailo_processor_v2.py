@@ -34,10 +34,11 @@ import threading
 import queue
 import traceback
 
-from app.config import get_cameras, TIMEZONE
+from app.config import get_cameras, TIMEZONE, DETECTION_COOLDOWN_SECONDS, DETECTION_CONFIDENCE_THRESHOLD
 from app.database import get_db
 from app.hailo_face_detector_v4 import create_face_detector
 from app.face_recognition_engine import get_face_recognition_engine
+from app.telegram_notifier import send_unknown_face_alert, send_known_face_alert
 
 
 class HailoProcessorV2:
@@ -60,10 +61,14 @@ class HailoProcessorV2:
         self.frame_queues = {}
         self.hailo_available = self._check_hailo_device()
         
-        # Face detection parameters
-        self.detection_interval = 1.0  # Process every N seconds per camera
-        self.confidence_threshold = 0.6
+        # Face detection parameters — read from config.ini [DETECTION] section
+        self.detection_interval = 1.0  # Process every N seconds per camera (frame rate throttle)
+        self.snapshot_cooldown = DETECTION_COOLDOWN_SECONDS  # Min seconds between saved snapshots per camera
+        self.confidence_threshold = DETECTION_CONFIDENCE_THRESHOLD
         self.min_face_size = (50, 50)  # Minimum face dimensions in pixels
+        
+        # Per-camera last-snapshot timestamp (used to enforce cooldown)
+        self.last_snapshot_time: Dict[str, float] = {}
         
         # Snapshot storage
         self.snapshot_dir = "data/snapshots"
@@ -393,6 +398,12 @@ class HailoProcessorV2:
                         tz = pytz.timezone(TIMEZONE)
                         timestamp = datetime.now(tz)
                         
+                        # Enforce per-camera snapshot cooldown
+                        last_snap = self.last_snapshot_time.get(camera_name, 0)
+                        if current_time - last_snap < self.snapshot_cooldown:
+                            continue  # Too soon — skip this detection
+                        self.last_snapshot_time[camera_name] = current_time
+                        
                         # Recognize face
                         visitor_id, confidence = self._recognize_face(frame, bbox)
                         
@@ -408,16 +419,28 @@ class HailoProcessorV2:
                             snapshot_path=snapshot_path
                         )
                         
-                        # Update stats
+                        # Update stats and send Telegram notifications
                         self.stats['total_detections'] += 1
                         if visitor_id is not None:
                             self.stats['total_recognitions'] += 1
                             visitor = self.db.get_visitor(visitor_id)
                             visitor_name = visitor['name'] if visitor else 'Unknown'
                             print(f"[HailoProcessorV2] Recognized {visitor_name} on {camera_name} (confidence: {confidence:.2f})")
+                            # Send Telegram alert for known visitor (fire-and-forget in background)
+                            threading.Thread(
+                                target=send_known_face_alert,
+                                args=(visitor_name, camera_name, snapshot_path),
+                                daemon=True
+                            ).start()
                         else:
                             self.stats['unknown_faces'] += 1
                             print(f"[HailoProcessorV2] Unknown face detected on {camera_name}")
+                            # Send Telegram alert for unknown face
+                            threading.Thread(
+                                target=send_unknown_face_alert,
+                                args=(camera_name, snapshot_path),
+                                daemon=True
+                            ).start()
                 
                 # Small delay to prevent CPU overload
                 time.sleep(0.01)
