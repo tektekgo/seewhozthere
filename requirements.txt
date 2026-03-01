@@ -1,15 +1,30 @@
 # SeeWhozThere - Python Dependencies
+#
+# IMPORTANT: Version pins are intentional and critical.
+#
+# numpy MUST be < 2.0 because:
+#   - Hailo SDK (hailort 4.23.0) requires numpy < 2
+#   - opencv-python-headless 4.8.x requires numpy < 2
+#   - DO NOT upgrade numpy without testing Hailo compatibility first
+#
+# opencv-python-headless MUST be < 4.9 because:
+#   - opencv-python-headless >= 4.9 requires numpy >= 2
+#   - This conflicts with the Hailo SDK requirement above
+#
+# See: https://github.com/tektekgo/seewhozthere/blob/main/docs/DEPENDENCY_NOTES.md
 
 # Web Framework
-fastapi>=0.104.1
-uvicorn[standard]>=0.24.0
-jinja2>=3.1.2
-python-multipart>=0.0.6
+fastapi>=0.104.1,<0.112.0
+uvicorn[standard]>=0.24.0,<0.30.0
+jinja2>=3.1.2,<4.0.0
+python-multipart>=0.0.6,<0.1.0
 
 # Computer Vision
-opencv-python-headless>=4.8.1.78
-numpy>=1.24.3
-pillow>=10.1.0
+# PINNED: Do not upgrade opencv without checking numpy compatibility
+opencv-python-headless==4.8.1.78
+# PINNED: Hailo SDK requires numpy < 2.0
+numpy>=1.24.3,<2.0.0
+pillow>=10.1.0,<12.0.0
 
 # Timezone handling
 pytz>=2023.3
@@ -17,8 +32,6 @@ pytz>=2023.3
 # Database (built-in with Python)
 # sqlite3 - included in Python standard library
 
-# Optional: For Hailo AI HAT+ (install separately)
-# hailo_platform - install from Hailo SDK
-
-# Optional: For enhanced face recognition
-# face-recognition>=1.3.0
+# NOTE: Hailo SDK (hailo_platform / hailort) must be installed separately
+# from the Hailo developer portal. It is NOT installable via pip.
+# See: docs/HAILO_SETUP.md for installation instructions.
