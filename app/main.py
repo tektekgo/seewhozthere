@@ -15,7 +15,6 @@ from typing import Optional
 from fastapi import FastAPI, Request, File, UploadFile, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 import cv2
 
 # Import our configuration settings
@@ -43,8 +42,6 @@ dashboard_dir = APP_DIR / "static" / "dashboard"
 if dashboard_dir.exists():
     app.mount("/dashboard/assets", StaticFiles(directory=dashboard_dir / "assets"), name="dashboard_assets")
 
-# Setup Jinja2 for HTML templating
-templates = Jinja2Templates(directory=APP_DIR / "templates")
 
 
 # --- Data Functions ---
@@ -663,6 +660,90 @@ async def save_general_config(request: Request):
     return {"success": True, "message": "Settings saved. Restart services to apply changes."}
 
 
+# --- Service Control API ---
+
+@app.post("/api/service/action")
+async def service_action(request: Request):
+    """Control the detection service via systemctl or process management."""
+    import subprocess
+    data = await request.json()
+    action = data.get("action", "")  # start | stop | restart | status
+    
+    if action not in ("start", "stop", "restart", "status"):
+        raise HTTPException(status_code=400, detail="Invalid action. Use: start, stop, restart, status")
+    
+    service_name = "seewhozthere"
+    
+    try:
+        if action == "status":
+            result = subprocess.run(
+                ["systemctl", "is-active", service_name],
+                capture_output=True, text=True, timeout=5
+            )
+            active = result.stdout.strip() == "active"
+            # Also check if systemd service exists
+            exists_result = subprocess.run(
+                ["systemctl", "status", service_name],
+                capture_output=True, text=True, timeout=5
+            )
+            installed = exists_result.returncode != 4  # 4 = unit not found
+            return {
+                "active": active,
+                "installed": installed,
+                "status": result.stdout.strip(),
+                "details": exists_result.stdout[:500] if installed else "Service not installed"
+            }
+        else:
+            result = subprocess.run(
+                ["sudo", "systemctl", action, service_name],
+                capture_output=True, text=True, timeout=15
+            )
+            success = result.returncode == 0
+            return {
+                "success": success,
+                "action": action,
+                "message": f"Service {action} {'succeeded' if success else 'failed'}",
+                "output": result.stdout + result.stderr
+            }
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Service command timed out")
+    except FileNotFoundError:
+        # systemctl not available (non-systemd system)
+        return {
+            "success": False,
+            "action": action,
+            "message": "systemctl not available on this system",
+            "installed": False
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/service/status")
+async def get_service_status():
+    """Get the systemd service status."""
+    import subprocess
+    service_name = "seewhozthere"
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", service_name],
+            capture_output=True, text=True, timeout=5
+        )
+        active = result.stdout.strip() == "active"
+        exists_result = subprocess.run(
+            ["systemctl", "status", service_name],
+            capture_output=True, text=True, timeout=5
+        )
+        installed = exists_result.returncode != 4
+        return {
+            "active": active,
+            "installed": installed,
+            "status": result.stdout.strip()
+        }
+    except Exception:
+        return {"active": False, "installed": False, "status": "unknown"}
+
+
 # --- Main Execution ---
 
 def start():
@@ -674,7 +755,7 @@ def start():
     reload_dirs = [str(APP_DIR)] if is_development else None
     
     uvicorn.run(
-        "app.main_v2:app",
+        "app.main:app",
         host="0.0.0.0",
         port=PORT,
         reload=is_development,

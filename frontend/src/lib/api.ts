@@ -52,4 +52,14 @@ export const api = {
     });
     return res.json();
   },
+  getServiceStatus: () => fetchFromApi("/api/service/status", { active: false, installed: false, status: "unknown" }),
+  serviceAction: async (action: "start" | "stop" | "restart") => {
+    const baseUrl = getApiUrl();
+    const res = await fetch(`${baseUrl}/api/service/action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    return res.json();
+  },
 };
