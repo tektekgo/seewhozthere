@@ -7,18 +7,23 @@ Enhanced version with user management, face recognition training, and API endpoi
 import uvicorn
 import os
 import io
+import hmac
+import hashlib
+import secrets
+import time
 import numpy as np
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI, Request, File, UploadFile, Form, HTTPException, Body
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi import FastAPI, Request, File, UploadFile, Form, HTTPException, Body, Response
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.base import BaseHTTPMiddleware
 import cv2
 
 # Import our configuration settings
-from app.config import TIMEZONE, PORT
+from app.config import TIMEZONE, PORT, SECURITY_PASSPHRASE, SECURITY_SESSION_HOURS, SECURITY_LOGIN_ENABLED
 from app.database import get_db
 from app.face_recognition_engine import get_face_recognition_engine
 from app.hailo_processor_v2 import get_processor
@@ -28,6 +33,77 @@ from app.analytics import get_analytics
 # --- Application Setup ---
 
 app = FastAPI(title="SeeWhozThere v2")
+
+# --- Auth / Session Helpers ---
+
+# A random secret key generated at startup (changes on restart — sessions expire on restart)
+_SESSION_SECRET = secrets.token_hex(32)
+SESSION_COOKIE = "swzt_session"
+
+
+def _make_token() -> str:
+    """Create a signed session token: timestamp|hmac_signature"""
+    ts = str(int(time.time()))
+    sig = hmac.new(_SESSION_SECRET.encode(), ts.encode(), hashlib.sha256).hexdigest()
+    return f"{ts}.{sig}"
+
+
+def _verify_token(token: str) -> bool:
+    """Verify a session token is valid and not expired."""
+    if not SECURITY_LOGIN_ENABLED:
+        return True  # login disabled — always authenticated
+    try:
+        ts_str, sig = token.rsplit(".", 1)
+        # Check signature
+        expected = hmac.new(_SESSION_SECRET.encode(), ts_str.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return False
+        # Check expiry
+        age_hours = (time.time() - int(ts_str)) / 3600
+        return age_hours < SECURITY_SESSION_HOURS
+    except Exception:
+        return False
+
+
+def _is_authenticated(request: Request) -> bool:
+    """Return True if the request carries a valid session cookie."""
+    if not SECURITY_LOGIN_ENABLED:
+        return True
+    token = request.cookies.get(SESSION_COOKIE, "")
+    return _verify_token(token)
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """Redirect unauthenticated requests for dashboard pages to /login.
+    API calls return 401 JSON instead of a redirect."""
+
+    # Paths that are always public (no auth required)
+    PUBLIC_PATHS = {"/login", "/login/", "/api/login", "/api/logout"}
+    # Prefixes that are always public (static assets needed by the login page)
+    PUBLIC_PREFIXES = ("/dashboard/assets/", "/dashboard/favicon", "/dashboard/logo",
+                       "/static/", "/data/")
+
+    async def dispatch(self, request: Request, call_next):
+        if not SECURITY_LOGIN_ENABLED:
+            return await call_next(request)
+
+        path = request.url.path
+
+        # Always allow public paths
+        if path in self.PUBLIC_PATHS or any(path.startswith(p) for p in self.PUBLIC_PREFIXES):
+            return await call_next(request)
+
+        # Check auth
+        if _is_authenticated(request):
+            return await call_next(request)
+
+        # Unauthenticated — API gets 401, pages get redirect to /login
+        if path.startswith("/api/"):
+            return JSONResponse({"error": "Not authenticated"}, status_code=401)
+        return RedirectResponse(url="/login", status_code=302)
+
+
+app.add_middleware(AuthMiddleware)
 
 # Define the absolute path to the 'app' directory
 APP_DIR = Path(__file__).parent.resolve()
@@ -878,8 +954,62 @@ async def get_service_status():
         return {"active": False, "installed": False, "status": "unknown"}
 
 
-# --- Main Execution ---
+## --- Login / Auth Endpoints ---
 
+@app.get("/login")
+@app.get("/login/")
+async def serve_login_page():
+    """Serve the login page. If login is disabled, redirect to dashboard."""
+    if not SECURITY_LOGIN_ENABLED:
+        return RedirectResponse(url="/dashboard/", status_code=302)
+    dashboard_index = APP_DIR / "static" / "dashboard" / "index.html"
+    if dashboard_index.exists():
+        return FileResponse(str(dashboard_index))
+    return HTMLResponse("<h1>Dashboard not built yet. Run ./build_frontend.sh</h1>")
+
+
+@app.post("/api/login")
+async def api_login(request: Request, response: Response):
+    """Validate passphrase and set session cookie."""
+    body = await request.json()
+    passphrase = body.get("passphrase", "")
+
+    if not SECURITY_LOGIN_ENABLED:
+        return {"success": True, "message": "Login not required"}
+
+    if passphrase == SECURITY_PASSPHRASE:
+        token = _make_token()
+        response.set_cookie(
+            key=SESSION_COOKIE,
+            value=token,
+            httponly=True,
+            samesite="lax",
+            max_age=int(SECURITY_SESSION_HOURS * 3600),
+            path="/"
+        )
+        return {"success": True}
+    else:
+        return JSONResponse({"success": False, "error": "Incorrect passphrase"}, status_code=401)
+
+
+@app.post("/api/logout")
+async def api_logout(response: Response):
+    """Clear the session cookie."""
+    response.delete_cookie(key=SESSION_COOKIE, path="/")
+    return {"success": True}
+
+
+@app.get("/api/auth-status")
+async def api_auth_status(request: Request):
+    """Return whether the user is authenticated and whether login is enabled."""
+    return {
+        "login_enabled": SECURITY_LOGIN_ENABLED,
+        "authenticated": _is_authenticated(request),
+        "default_passphrase": SECURITY_PASSPHRASE == "changeme" and SECURITY_LOGIN_ENABLED
+    }
+
+
+# --- Main Execution ---
 def start():
     """Entry point for running the Uvicorn server."""
     is_development = os.environ.get("APP_ENV") == "development"

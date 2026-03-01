@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Moon, Sun, Cpu, Camera, Activity, UserPlus } from "lucide-react";
+import { Moon, Sun, Cpu, Camera, Activity, UserPlus, LogOut } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -112,7 +112,7 @@ function StatusDot({ on }: { on: boolean }) {
 
 // ─── Navbar ───────────────────────────────────────────────────────────────────
 
-export function Navbar() {
+export function Navbar({ onLogout }: { onLogout?: () => void }) {
   const { theme, toggle } = useTheme();
   const location = useLocation();
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -254,6 +254,26 @@ export function Navbar() {
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
+
+            {/* Sign Out */}
+            {onLogout && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onLogout}
+                    className="ml-0.5 text-muted-foreground hover:text-red-500"
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  Sign out
+                </TooltipContent>
+              </Tooltip>
+            )}
           </nav>
         </div>
       </header>

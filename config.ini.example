@@ -35,6 +35,15 @@ sender_email =
 sender_password = 
 recipient_email = 
 
+[SECURITY]
+# Passphrase to access the dashboard.
+# IMPORTANT: Change this before sharing the app with anyone.
+# Leave blank to disable login entirely (not recommended if accessible from outside your home).
+passphrase = changeme
+
+# How long a login session lasts in hours before the user must log in again
+session_hours = 24
+
 [CAMERAS]
 # Add your camera RTSP streams here
 # Format: camera_name = rtsp://username:password@ip:port/stream

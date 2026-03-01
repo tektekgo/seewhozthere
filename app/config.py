@@ -46,6 +46,12 @@ SCHEDULER_SERVICE = _config.get("SCHEDULER", "service", fallback="telegram")
 TELEGRAM_BOT_TOKEN = _config.get("TELEGRAM", "bot_token", fallback="")
 TELEGRAM_CHAT_ID = _config.get("TELEGRAM", "chat_id", fallback="")
 
+# Security settings
+SECURITY_PASSPHRASE = _config.get("SECURITY", "passphrase", fallback="changeme")
+SECURITY_SESSION_HOURS = _config.getint("SECURITY", "session_hours", fallback=24)
+# Login is enabled whenever a non-empty passphrase is set
+SECURITY_LOGIN_ENABLED = bool(SECURITY_PASSPHRASE.strip())
+
 # Camera settings — loaded at import time for backwards compatibility.
 # NOTE: Use get_cameras() in long-running services so a restart picks up changes.
 CAMERAS = get_cameras()
