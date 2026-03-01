@@ -1,13 +1,18 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { UserX, Clock, ArrowRight } from "lucide-react";
 import type { Visitor } from "@/lib/mock-data";
 
 type Filter = "all" | "known" | "unknown";
 
-export function VisitorGrid({ visitors }: { visitors: Visitor[] }) {
+interface VisitorGridProps {
+  visitors: Visitor[];
+}
+
+export function VisitorGrid({ visitors }: VisitorGridProps) {
   const [filter, setFilter] = useState<Filter>("all");
 
   const filtered = visitors.filter((v) => {
@@ -18,48 +23,100 @@ export function VisitorGrid({ visitors }: { visitors: Visitor[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Today's Visitors</h2>
-        <div className="flex gap-1">
-          {(["all", "known", "unknown"] as Filter[]).map((f) => (
-            <Button key={f} variant={filter === f ? "secondary" : "ghost"} size="sm" onClick={() => setFilter(f)}>
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-lg font-semibold">Today's Visitors</h2>
+          <p className="text-sm text-muted-foreground">People detected by your cameras today</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            {(["all", "known", "unknown"] as Filter[]).map((f) => (
+              <Button
+                key={f}
+                variant={filter === f ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setFilter(f)}
+                className="capitalize text-xs"
+              >
+                {f}
+              </Button>
+            ))}
+          </div>
+          <Link to="/history">
+            <Button variant="outline" size="sm" className="text-xs">
+              View All <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
-          ))}
+          </Link>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filtered.map((v) => (
-          <Card key={v.id} className="hover:border-primary/30 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className={v.known ? "bg-primary/10 text-primary" : "bg-accent/20 text-accent"}>
-                    {v.known ? v.name.split(" ").map((n) => n[0]).join("") : "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium truncate">{v.name}</p>
-                    <Badge variant={v.known ? "default" : "secondary"} className="text-[10px] shrink-0">
-                      {v.known ? "Known" : "Unknown"}
-                    </Badge>
+      {filtered.length === 0 ? (
+        <div className="text-center py-12 space-y-2 border rounded-lg bg-muted/20">
+          <UserX className="h-10 w-10 mx-auto text-muted-foreground/30" />
+          <p className="text-sm font-medium text-muted-foreground">
+            {visitors.length === 0
+              ? "No visitors detected today yet"
+              : `No ${filter} visitors today`}
+          </p>
+          {visitors.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Detections will appear here once the camera captures faces
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filtered.map((v) => (
+            <Card key={v.id} className="hover:shadow-md hover:border-primary/30 transition-all overflow-hidden">
+              <CardContent className="p-0">
+                <div className="flex">
+                  {/* Face thumbnail */}
+                  <div className="shrink-0 w-20 h-20 bg-muted relative">
+                    {v.thumbnail ? (
+                      <img
+                        src={v.thumbnail}
+                        alt={v.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className={`w-full h-full flex items-center justify-center text-xl font-bold ${v.known ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-500"}`}>
+                        {v.known ? v.name.split(" ").map((n) => n[0]).join("").slice(0, 2) : "?"}
+                      </div>
+                    )}
+                    <div className="absolute bottom-1 left-1">
+                      <Badge
+                        variant={v.known ? "default" : "secondary"}
+                        className={`text-[8px] px-1 py-0 ${v.known ? "" : "bg-amber-500/80 text-white border-0"}`}
+                      >
+                        {v.known ? "Known" : "Unknown"}
+                      </Badge>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {v.firstSeen} — {v.lastSeen} · {v.sightings} sighting{v.sightings !== 1 ? "s" : ""}
-                  </p>
+
+                  {/* Info */}
+                  <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
+                    <div>
+                      <p className="text-sm font-semibold truncate">{v.name}</p>
+                      <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{v.firstSeen} – {v.lastSeen}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {v.sightings} detection{v.sightings !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <Link to="/history">
+                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2 mt-1 w-full justify-start text-muted-foreground hover:text-foreground">
+                        {v.known ? "View history →" : "Name this person →"}
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 text-xs h-7">
-                  {v.known ? "History" : "Identify"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

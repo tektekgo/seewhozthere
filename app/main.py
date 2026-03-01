@@ -397,6 +397,53 @@ async def get_unknown_sightings(limit: int = 50):
     return {"sightings": result}
 
 
+@app.get("/api/sightings")
+async def get_all_sightings(limit: int = 100):
+    """Get all sightings (known and unknown) with visitor names."""
+    db = get_db()
+    conn = db._get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.id, s.camera_name, s.timestamp, s.snapshot_path,
+               s.visitor_id, v.name as visitor_name
+        FROM sightings s
+        LEFT JOIN visitors v ON s.visitor_id = v.id
+        ORDER BY s.timestamp DESC
+        LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    result = []
+    for row in rows:
+        snapshot_path = row['snapshot_path'] or ''
+        if snapshot_path and snapshot_path.startswith('data/'):
+            snapshot_url = '/' + snapshot_path
+        elif snapshot_path:
+            snapshot_url = '/data/snapshots/' + os.path.basename(snapshot_path)
+        else:
+            snapshot_url = None
+
+        ts = row['timestamp']
+        if ts and hasattr(ts, 'isoformat'):
+            ts_str = ts.isoformat()
+        elif ts:
+            ts_str = str(ts)
+        else:
+            ts_str = None
+
+        result.append({
+            "id": row['id'],
+            "camera_name": row['camera_name'],
+            "timestamp": ts_str,
+            "snapshot_url": snapshot_url,
+            "visitor_id": row['visitor_id'],
+            "visitor_name": row['visitor_name'],
+        })
+
+    return {"sightings": result}
+
+
 @app.delete("/api/sightings/{sighting_id}")
 async def delete_sighting(sighting_id: int):
     """Delete a sighting and its snapshot."""

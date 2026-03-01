@@ -1,4 +1,4 @@
-// API service with mock data fallback for SeeWhozThere
+// SeeWhozThere API client
 import {
   mockStats,
   mockHourlyData,
@@ -23,25 +23,68 @@ export function setApiUrl(url: string) {
 async function fetchFromApi<T>(endpoint: string, fallback: T): Promise<T> {
   const baseUrl = getApiUrl();
   try {
-    const res = await fetch(`${baseUrl}${endpoint}`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${baseUrl}${endpoint}`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return fallback;
     return await res.json();
   } catch {
     return fallback;
   }
 }
 
-const defaultStatus = { running: false, hailo_available: false, active_cameras: 0 };
+const defaultStatus = { running: false, hailo_available: false, active_cameras: 0, known_people: 0 };
 
 export const api = {
+  // --- Analytics ---
   getStats: () => fetchFromApi("/api/stats", mockStats),
   getHourlyActivity: () => fetchFromApi("/api/hourly", mockHourlyData),
   getKnownVsUnknown: () => fetchFromApi("/api/known-unknown", mockKnownVsUnknown),
   getWeeklyTrend: () => fetchFromApi("/api/weekly", mockWeeklyTrend),
   getCameraActivity: () => fetchFromApi("/api/cameras", mockCameraActivity),
-  getTopVisitors: () => fetchFromApi("/api/top-visitors", mockTopVisitors),
+  getTopVisitors: () => fetchFromApi("/api/top-visitors", { visitors: mockTopVisitors }),
   getTodayVisitors: () => fetchFromApi("/api/today-visitors", mockTodayVisitors),
   getHeatmapData: () => fetchFromApi("/api/heatmap", mockHeatmapData),
+
+  // --- System status ---
   getStatus: () => fetchFromApi("/api/status", defaultStatus),
+
+  // --- Known visitors ---
+  getVisitors: () => fetchFromApi("/api/visitors", { visitors: [] }),
+  addVisitor: async (name: string, photo?: File) => {
+    const baseUrl = getApiUrl();
+    const form = new FormData();
+    form.append("name", name);
+    if (photo) form.append("photo", photo);
+    const res = await fetch(`${baseUrl}/api/visitors`, { method: "POST", body: form });
+    return res.json();
+  },
+  deleteVisitor: async (id: number) => {
+    const baseUrl = getApiUrl();
+    const res = await fetch(`${baseUrl}/api/visitors/${id}`, { method: "DELETE" });
+    return res.json();
+  },
+
+  // --- Sightings (detection events) ---
+  getUnknownSightings: (limit = 50) =>
+    fetchFromApi(`/api/unknown-sightings?limit=${limit}`, { sightings: [] }),
+  getAllSightings: (limit = 100) =>
+    fetchFromApi(`/api/sightings?limit=${limit}`, { sightings: [] }),
+  identifySighting: async (sightingId: number, visitorId: number) => {
+    const baseUrl = getApiUrl();
+    const form = new FormData();
+    form.append("visitor_id", String(visitorId));
+    const res = await fetch(`${baseUrl}/api/sightings/${sightingId}/identify`, {
+      method: "POST",
+      body: form,
+    });
+    return res.json();
+  },
+  deleteSighting: async (sightingId: number) => {
+    const baseUrl = getApiUrl();
+    const res = await fetch(`${baseUrl}/api/sightings/${sightingId}`, { method: "DELETE" });
+    return res.json();
+  },
+
+  // --- Camera config ---
   getCamerasConfig: () => fetchFromApi("/api/config/cameras", { cameras: {} }),
   saveCamerasConfig: async (cameras: Record<string, string>) => {
     const baseUrl = getApiUrl();
@@ -52,7 +95,10 @@ export const api = {
     });
     return res.json();
   },
-  getServiceStatus: () => fetchFromApi("/api/service/status", { active: false, installed: false, status: "unknown" }),
+
+  // --- Service control ---
+  getServiceStatus: () =>
+    fetchFromApi("/api/service/status", { active: false, installed: false, status: "unknown" }),
   serviceAction: async (action: "start" | "stop" | "restart") => {
     const baseUrl = getApiUrl();
     const res = await fetch(`${baseUrl}/api/service/action`, {
