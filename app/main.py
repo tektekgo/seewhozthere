@@ -438,9 +438,8 @@ async def get_system_status():
         processor = get_processor()
         status = processor.get_status()
         
-        # Consider the system "running" if the processor is initialized,
-        # even if no cameras are configured yet
-        is_running = status.get('running', False) or status.get('active_cameras', 0) >= 0
+        # System is "running" only if the processor is actively running AND has cameras
+        is_running = status.get('running', False) and status.get('active_cameras', 0) > 0
         
         return {
             "running": is_running,
