@@ -1,20 +1,24 @@
 # SeeWhozThere - Python Dependencies
 
 # Web Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-jinja2==3.1.2
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+jinja2>=3.1.2
+python-multipart>=0.0.6
+
+# Computer Vision
+opencv-python-headless>=4.8.1.78
+numpy>=1.24.3
+pillow>=10.1.0
 
 # Timezone handling
-pytz==2023.3
+pytz>=2023.3
 
-# Database (built-in with Python, but listed for clarity)
+# Database (built-in with Python)
 # sqlite3 - included in Python standard library
 
-# Future dependencies (install when hardware arrives):
-# opencv-python==4.8.1.78
-# pycoral==2.0.0
-# face-recognition==1.3.0
-# numpy==1.24.3
-# pillow==10.1.0
-opencv-python==4.8.1.78
+# Optional: For Hailo AI HAT+ (install separately)
+# hailo_platform - install from Hailo SDK
+
+# Optional: For enhanced face recognition
+# face-recognition>=1.3.0

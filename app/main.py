@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI, Request, File, UploadFile, Form, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import cv2
@@ -41,7 +41,7 @@ app.mount("/data", StaticFiles(directory=PROJECT_ROOT / "data"), name="data")
 # Mount React dashboard (if built)
 dashboard_dir = APP_DIR / "static" / "dashboard"
 if dashboard_dir.exists():
-    app.mount("/dashboard", StaticFiles(directory=dashboard_dir, html=True), name="dashboard")
+    app.mount("/dashboard/assets", StaticFiles(directory=dashboard_dir / "assets"), name="dashboard_assets")
 
 # Setup Jinja2 for HTML templating
 templates = Jinja2Templates(directory=APP_DIR / "templates")
@@ -123,6 +123,17 @@ async def get_dashboard(request: Request):
 
 
 # --- API Endpoints for User Management ---
+
+
+@app.get("/dashboard")
+@app.get("/dashboard/")
+@app.get("/dashboard/{path:path}")
+async def serve_dashboard(path: str = ""):
+    """Serve the React dashboard SPA."""
+    dashboard_index = APP_DIR / "static" / "dashboard" / "index.html"
+    if dashboard_index.exists():
+        return FileResponse(str(dashboard_index))
+    return HTMLResponse("<h1>Dashboard not built yet. Run ./build_frontend.sh</h1>")
 
 @app.get("/api/visitors")
 async def get_all_visitors():
@@ -498,6 +509,56 @@ async def get_heatmap():
     analytics = get_analytics()
     return {"heatmap": analytics.get_heatmap_data()}
 
+
+
+# --- Short-form API Endpoints (for React dashboard compatibility) ---
+@app.get("/api/stats")
+async def get_stats_short():
+    """Short-form stats endpoint for React dashboard."""
+    analytics = get_analytics()
+    return analytics.get_stats()
+
+@app.get("/api/hourly")
+async def get_hourly_short():
+    """Short-form hourly endpoint for React dashboard."""
+    analytics = get_analytics()
+    return analytics.get_hourly_activity()
+
+@app.get("/api/known-unknown")
+async def get_known_unknown_short():
+    """Short-form known-unknown endpoint for React dashboard."""
+    analytics = get_analytics()
+    return analytics.get_known_vs_unknown()
+
+@app.get("/api/weekly")
+async def get_weekly_short():
+    """Short-form weekly endpoint for React dashboard."""
+    analytics = get_analytics()
+    return analytics.get_weekly_trend()
+
+@app.get("/api/cameras")
+async def get_cameras_short():
+    """Short-form cameras endpoint for React dashboard."""
+    analytics = get_analytics()
+    return analytics.get_camera_activity()
+
+@app.get("/api/top-visitors")
+async def get_top_visitors_short():
+    """Short-form top-visitors endpoint for React dashboard."""
+    analytics = get_analytics()
+    return analytics.get_top_visitors()
+
+@app.get("/api/today-visitors")
+async def get_today_visitors():
+    """Get today's visitors for React dashboard."""
+    analytics = get_analytics()
+    return analytics.get_top_visitors(limit=20)
+
+@app.get("/api/heatmap")
+async def get_heatmap_short():
+    """Short-form heatmap endpoint for React dashboard."""
+    analytics = get_analytics()
+    return analytics.get_heatmap_data()
 
 # --- Main Execution ---
 
