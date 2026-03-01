@@ -78,7 +78,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
     API calls return 401 JSON instead of a redirect."""
 
     # Paths that are always public (no auth required)
-    PUBLIC_PATHS = {"/login", "/login/", "/api/login", "/api/logout"}
+    PUBLIC_PATHS = {"/login", "/login/", "/dashboard/login", "/dashboard/login/",
+                    "/api/login", "/api/logout", "/api/auth-status"}
     # Prefixes that are always public (static assets needed by the login page)
     PUBLIC_PREFIXES = ("/dashboard/assets/", "/dashboard/favicon", "/dashboard/logo",
                        "/static/", "/data/")
@@ -97,10 +98,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if _is_authenticated(request):
             return await call_next(request)
 
-        # Unauthenticated — API gets 401, pages get redirect to /login
+        # Unauthenticated — API gets 401, pages get redirect to /dashboard/login
         if path.startswith("/api/"):
             return JSONResponse({"error": "Not authenticated"}, status_code=401)
-        return RedirectResponse(url="/login", status_code=302)
+        return RedirectResponse(url="/dashboard/login", status_code=302)
 
 
 app.add_middleware(AuthMiddleware)
@@ -958,14 +959,9 @@ async def get_service_status():
 
 @app.get("/login")
 @app.get("/login/")
-async def serve_login_page():
-    """Serve the login page. If login is disabled, redirect to dashboard."""
-    if not SECURITY_LOGIN_ENABLED:
-        return RedirectResponse(url="/dashboard/", status_code=302)
-    dashboard_index = APP_DIR / "static" / "dashboard" / "index.html"
-    if dashboard_index.exists():
-        return FileResponse(str(dashboard_index))
-    return HTMLResponse("<h1>Dashboard not built yet. Run ./build_frontend.sh</h1>")
+async def serve_login_redirect():
+    """Redirect old /login URL to the React-handled /dashboard/login."""
+    return RedirectResponse(url="/dashboard/login", status_code=302)
 
 
 @app.post("/api/login")
