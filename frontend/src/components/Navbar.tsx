@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Moon, Sun, Cpu, Wifi, WifiOff, UserPlus } from "lucide-react";
+import { Moon, Sun, Cpu, Camera, Activity, UserPlus } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import logo from "@/assets/logo.png";
 import { useEffect, useState } from "react";
@@ -27,6 +33,7 @@ interface SystemStatus {
   running: boolean;
   hailo_available: boolean;
   active_cameras: number;
+  camera_names?: string[];
 }
 
 function AddVisitorDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -91,6 +98,20 @@ function AddVisitorDialog({ open, onClose }: { open: boolean; onClose: () => voi
   );
 }
 
+// ─── Status dot ───────────────────────────────────────────────────────────────
+
+function StatusDot({ on }: { on: boolean }) {
+  return (
+    <span
+      className={`inline-block h-2 w-2 rounded-full shrink-0 ${
+        on ? "bg-green-500" : "bg-red-500"
+      }`}
+    />
+  );
+}
+
+// ─── Navbar ───────────────────────────────────────────────────────────────────
+
 export function Navbar() {
   const { theme, toggle } = useTheme();
   const location = useLocation();
@@ -106,13 +127,26 @@ export function Navbar() {
     return () => clearInterval(interval);
   }, []);
 
-  const isOnline = status?.running === true;
-  const hasHailo = status?.hailo_available === true;
+  // Three distinct status signals
+  const cameraOn = (status?.active_cameras ?? 0) > 0;
+  const detectionOn = status?.running === true;
+  const aiOn = status?.hailo_available === true;
+
+  const cameraLabel = cameraOn
+    ? `${status!.active_cameras} camera${status!.active_cameras !== 1 ? "s" : ""} streaming`
+    : "No cameras streaming";
+  const detectionLabel = detectionOn
+    ? "Detection service running"
+    : "Detection service stopped — go to Settings → Service to start it";
+  const aiLabel = aiOn
+    ? "Hailo AI HAT+ active (hardware acceleration)"
+    : "AI engine not detected";
 
   return (
     <>
       <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
         <div className="container flex h-14 items-center justify-between">
+          {/* Logo */}
           <Link to="/" className="flex items-center gap-2 font-bold text-lg">
             <img src={logo} alt="SeeWhozThere logo" className="h-7 w-7 rounded" />
             <div className="flex flex-col leading-tight">
@@ -122,6 +156,7 @@ export function Navbar() {
           </Link>
 
           <nav className="flex items-center gap-1">
+            {/* Nav links */}
             {navItems.map((item) => (
               <Link key={item.path} to={item.path}>
                 <Button
@@ -133,7 +168,7 @@ export function Navbar() {
               </Link>
             ))}
 
-            {/* Add Known Visitor — quick access from anywhere */}
+            {/* Add Known Visitor */}
             <Button
               variant="outline"
               size="sm"
@@ -144,24 +179,71 @@ export function Navbar() {
               <span className="text-xs">Add Person</span>
             </Button>
 
-            {/* System Status */}
-            <div className="flex items-center gap-1.5 ml-2 px-2 py-1 rounded-md border bg-background/50">
-              {isOnline ? (
-                <Wifi className="h-3.5 w-3.5 text-green-500" />
-              ) : (
-                <WifiOff className="h-3.5 w-3.5 text-red-500" />
-              )}
-              <span className={`text-xs font-medium ${isOnline ? "text-green-500" : "text-red-500"}`}>
-                {isOnline ? "Online" : "Offline"}
-              </span>
-              {hasHailo && (
-                <Badge variant="outline" className="h-4 px-1 text-[9px] font-bold text-purple-500 border-purple-500/50 ml-0.5">
-                  <Cpu className="h-2.5 w-2.5 mr-0.5" />AI
-                </Badge>
-              )}
-            </div>
+            {/* ── Status indicators ── */}
+            <TooltipProvider delayDuration={200}>
+              <div className="flex items-center gap-2 ml-2 px-2.5 py-1 rounded-md border bg-background/50">
 
-            {/* Dark/Light toggle with accessible label */}
+                {/* Camera */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-default">
+                      <StatusDot on={cameraOn} />
+                      <Camera className={`h-3.5 w-3.5 ${cameraOn ? "text-green-500" : "text-muted-foreground"}`} />
+                      <span className={`text-[11px] font-medium hidden md:inline ${cameraOn ? "text-green-500" : "text-muted-foreground"}`}>
+                        Cam
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    <p className="font-semibold mb-0.5">Camera</p>
+                    <p>{cameraLabel}</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                <span className="text-border">|</span>
+
+                {/* Detection */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-default">
+                      <StatusDot on={detectionOn} />
+                      <Activity className={`h-3.5 w-3.5 ${detectionOn ? "text-green-500" : "text-red-500"}`} />
+                      <span className={`text-[11px] font-medium hidden md:inline ${detectionOn ? "text-green-500" : "text-red-500"}`}>
+                        {detectionOn ? "Active" : "Stopped"}
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    <p className="font-semibold mb-0.5">Detection Service</p>
+                    <p>{detectionLabel}</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                <span className="text-border">|</span>
+
+                {/* AI Engine */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-default">
+                      <StatusDot on={aiOn} />
+                      <Cpu className={`h-3.5 w-3.5 ${aiOn ? "text-purple-500" : "text-muted-foreground"}`} />
+                      {aiOn && (
+                        <Badge variant="outline" className="h-4 px-1 text-[9px] font-bold text-purple-500 border-purple-500/50">
+                          HAT+
+                        </Badge>
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    <p className="font-semibold mb-0.5">AI Engine</p>
+                    <p>{aiLabel}</p>
+                  </TooltipContent>
+                </Tooltip>
+
+              </div>
+            </TooltipProvider>
+
+            {/* Dark/Light toggle */}
             <Button
               variant="ghost"
               size="icon"

@@ -633,9 +633,10 @@ async def get_top_visitors_short():
 
 @app.get("/api/today-visitors")
 async def get_today_visitors():
-    """Get today's visitors for React dashboard."""
+    """Get today's sightings (known + unknown) for React dashboard."""
     analytics = get_analytics()
-    return analytics.get_top_visitors(limit=20)
+    sightings = analytics.get_today_sightings(limit=20)
+    return {"sightings": sightings}
 
 @app.get("/api/heatmap")
 async def get_heatmap_short():

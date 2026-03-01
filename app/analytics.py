@@ -26,40 +26,41 @@ class Analytics:
         return conn
     
     def get_stats(self) -> Dict[str, int]:
-        """Get overall statistics"""
+        """Get overall statistics for the dashboard stat cards."""
         conn = self._get_connection()
         cursor = conn.cursor()
-        
-        # Total unique visitors (known people)
-        cursor.execute("SELECT COUNT(*) as count FROM visitors")
-        total_visitors = cursor.fetchone()['count']
-        
-        # Today's activity (all sightings today)
+
+        # Total detections ALL TIME (every sighting ever recorded)
+        cursor.execute("SELECT COUNT(*) as count FROM sightings")
+        total_detections = cursor.fetchone()['count']
+
+        # Today's detections
         today = datetime.now().date()
         cursor.execute("""
-            SELECT COUNT(*) as count FROM sightings 
+            SELECT COUNT(*) as count FROM sightings
             WHERE DATE(timestamp) = ?
         """, (str(today),))
         today_activity = cursor.fetchone()['count']
-        
-        # Active cameras (from config or sightings)
+
+        # Active cameras seen today
         cursor.execute("""
             SELECT COUNT(DISTINCT camera_name) as count FROM sightings
-        """)
+            WHERE DATE(timestamp) = ?
+        """, (str(today),))
         active_cameras = cursor.fetchone()['count']
-        
-        # Unknown visitors today
+
+        # Unknown detections today (no visitor assigned)
         cursor.execute("""
-            SELECT COUNT(*) as count FROM sightings 
+            SELECT COUNT(*) as count FROM sightings
             WHERE DATE(timestamp) = ? AND visitor_id IS NULL
         """, (str(today),))
         unknown_today = cursor.fetchone()['count']
-        
+
         conn.close()
-        
+
         return {
-            "totalVisitors": total_visitors,
-            "todayActivity": today_activity,
+            "totalDetections": total_detections,
+            "todayDetections": today_activity,
             "activeCameras": active_cameras,
             "unknownToday": unknown_today
         }
@@ -185,7 +186,7 @@ class Analytics:
         return camera_data
     
     def get_top_visitors(self, limit: int = 5) -> List[Dict[str, Any]]:
-        """Get top visitors by sighting count"""
+        """Get top visitors by sighting count (known people only)"""
         conn = self._get_connection()
         cursor = conn.cursor()
         
@@ -219,6 +220,52 @@ class Analytics:
         
         conn.close()
         return visitors
+
+    def get_today_sightings(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Get today's sightings (known AND unknown) with snapshot paths for Today's Visitors section."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        today = datetime.now().date()
+
+        cursor.execute("""
+            SELECT
+                s.id,
+                s.camera_name,
+                s.timestamp,
+                s.snapshot_path,
+                s.visitor_id,
+                v.name as visitor_name
+            FROM sightings s
+            LEFT JOIN visitors v ON s.visitor_id = v.id
+            WHERE DATE(s.timestamp) = ?
+            ORDER BY s.timestamp DESC
+            LIMIT ?
+        """, (str(today), limit))
+
+        sightings = []
+        for row in cursor.fetchall():
+            # Build a URL-accessible snapshot path
+            snap_path = row['snapshot_path']
+            if snap_path:
+                snap_name = Path(snap_path).name
+                detected_at = row['timestamp']
+            else:
+                snap_name = None
+                detected_at = row['timestamp']
+
+            sightings.append({
+                "id": row['id'],
+                "camera_name": row['camera_name'] or 'Unknown',
+                "detected_at": detected_at,
+                "snapshot_path": f"data/snapshots/{snap_name}" if snap_name else None,
+                "visitor_id": row['visitor_id'],
+                "visitor_name": row['visitor_name'],
+                "isKnown": row['visitor_id'] is not None
+            })
+
+        conn.close()
+        return sightings
     
     def get_heatmap_data(self) -> List[Dict[str, Any]]:
         """Get heatmap data (hour x day of week)"""
