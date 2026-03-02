@@ -78,9 +78,20 @@ export function HourlyActivityChart({ data }: { data: HourlyActivity[] }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
+        {/* Legend sits above the chart so it never overlaps the X-axis title */}
+        <div className="flex items-center gap-4 mb-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded-sm" style={{ background: "hsl(var(--chart-known))" }} />
+            Identified
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded-sm" style={{ background: "hsl(var(--chart-unknown))" }} />
+            Unknown
+          </span>
+        </div>
+        <div className="h-60">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} barGap={0} margin={{ top: 16, right: 8, left: 8, bottom: 28 }}>
+            <BarChart data={data} barGap={0} margin={{ top: 8, right: 8, left: 8, bottom: 28 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
                 dataKey="hour"
@@ -109,13 +120,7 @@ export function HourlyActivityChart({ data }: { data: HourlyActivity[] }) {
                 />
               </YAxis>
               <Tooltip content={<CustomTooltip />} />
-              <Legend
-                formatter={(value) => (value === "known" ? "Identified" : "Unknown")}
-                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-              />
-              <Bar dataKey="known" stackId="a" fill="hsl(var(--chart-known))" name="known">
-                {/* No label on middle of stacked bar — label on top bar only */}
-              </Bar>
+              <Bar dataKey="known" stackId="a" fill="hsl(var(--chart-known))" name="known" />
               <Bar dataKey="unknown" stackId="a" fill="hsl(var(--chart-unknown))" name="unknown" radius={[3, 3, 0, 0]}>
                 <LabelList content={<SmartLabel />} />
               </Bar>
