@@ -457,7 +457,13 @@ async def delete_visitor(visitor_id: int):
 
 @app.post("/api/sightings/{sighting_id}/identify")
 async def identify_sighting(sighting_id: int, visitor_id: int = Form(...)):
-    """Associate an unknown sighting with a known visitor."""
+    """
+    Associate an unknown sighting with a known visitor.
+    
+    If the visitor does not yet have a face encoding saved, this endpoint will
+    attempt to extract one from the sighting's snapshot image and save it.
+    This teaches the system to recognise this person in future detections.
+    """
     db = get_db()
     
     # Verify visitor exists
@@ -465,13 +471,55 @@ async def identify_sighting(sighting_id: int, visitor_id: int = Form(...)):
     if not visitor:
         raise HTTPException(status_code=404, detail="Visitor not found")
     
-    # Update sighting
-    success = db.identify_sighting(sighting_id, visitor_id)
+    # Get the sighting so we can find its snapshot
+    conn = db._get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT snapshot_path FROM sightings WHERE id = ?", (sighting_id,))
+    row = cursor.fetchone()
+    conn.close()
+    snapshot_path = dict(row)["snapshot_path"] if row else None
     
-    if success:
-        return {"success": True, "message": f"Identified as {visitor['name']}"}
-    else:
+    # Update sighting visitor_id
+    success = db.identify_sighting(sighting_id, visitor_id)
+    if not success:
         raise HTTPException(status_code=404, detail="Sighting not found")
+    
+    encoding_saved = False
+    
+    # If this visitor has no face encoding yet, extract one from the snapshot
+    if not visitor.get("face_encoding") and snapshot_path:
+        try:
+            import cv2 as _cv2
+            from app.face_recognition_engine import get_face_recognition_engine as _get_fre
+            
+            img = _cv2.imread(snapshot_path)
+            if img is not None:
+                fre = _get_fre()
+                encoding = fre.encode_face(img)
+                encoding_bytes = encoding.astype(np.float32).tobytes()
+                
+                # Save encoding and use snapshot as thumbnail if none exists
+                thumb = visitor.get("thumbnail_path") or snapshot_path
+                db.update_visitor(visitor_id, face_encoding=encoding_bytes, thumbnail_path=thumb)
+                
+                # Reload known faces in the running detection processor
+                try:
+                    processor = get_processor()
+                    processor.reload_known_faces()
+                    print(f"[identify] Saved encoding for {visitor['name']} and reloaded detector")
+                except Exception as reload_err:
+                    print(f"[identify] Encoding saved but reload failed: {reload_err}")
+                
+                encoding_saved = True
+        except Exception as enc_err:
+            print(f"[identify] Could not extract encoding from snapshot: {enc_err}")
+    
+    return {
+        "success": True,
+        "message": f"Identified as {visitor['name']}",
+        "encoding_saved": encoding_saved,
+        "visitor_name": visitor['name']
+    }
 
 
 @app.get("/api/unknown-sightings")
