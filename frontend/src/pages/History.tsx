@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Search, UserCheck, UserX, Camera, Clock, Calendar,
   Plus, Tag, Trash2, RefreshCw, CheckSquare, Square,
-  CheckCheck, X, Users,
+  CheckCheck, X, Users, Video,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -411,6 +411,7 @@ const History = () => {
   const [knownVisitors, setKnownVisitors] = useState<KnownVisitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
+  const [cameraFilter, setCameraFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
   // Single-item dialogs
@@ -442,10 +443,17 @@ const History = () => {
 
   // ── Filtering ─────────────────────────────────────────────────────────────
 
+  // Derive sorted unique camera names from all sightings
+  const cameraNames = useMemo(() => {
+    const names = Array.from(new Set(sightings.map((s) => s.camera_name).filter(Boolean)));
+    return names.sort();
+  }, [sightings]);
+
   const filtered = sightings.filter((s) => {
     const isKnown = !!s.visitor_name;
     if (filter === "known" && !isKnown) return false;
     if (filter === "unknown" && isKnown) return false;
+    if (cameraFilter !== "all" && s.camera_name !== cameraFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       if (
@@ -537,7 +545,7 @@ const History = () => {
       </div>
 
       {/* Search + filter bar */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -547,6 +555,7 @@ const History = () => {
             className="pl-9"
           />
         </div>
+        {/* Known / Unknown filter */}
         <div className="flex gap-2">
           {(["all", "known", "unknown"] as Filter[]).map((f) => (
             <Button
@@ -562,6 +571,31 @@ const History = () => {
             </Button>
           ))}
         </div>
+        {/* Camera filter — only shown when more than one camera exists */}
+        {cameraNames.length > 1 && (
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant={cameraFilter === "all" ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setCameraFilter("all")}
+            >
+              <Video className="h-3.5 w-3.5 mr-1" />
+              All Cameras
+            </Button>
+            {cameraNames.map((cam) => (
+              <Button
+                key={cam}
+                variant={cameraFilter === cam ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setCameraFilter(cameraFilter === cam ? "all" : cam)}
+                className="capitalize"
+              >
+                <Camera className="h-3.5 w-3.5 mr-1" />
+                {cam.replace(/_/g, " ")}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Summary counts */}

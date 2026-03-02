@@ -205,3 +205,26 @@ npm run dev
 ```
 
 Now you can access the development dashboard at `http://<your_pi_ip_address>:8080`.
+
+
+## Appendix: Camera Capacity
+
+The number of cameras you can reliably run depends on your Raspberry Pi model and the complexity of your RTSP streams. The Hailo AI HAT+ handles the heavy lifting of face detection, but the Pi's CPU is still responsible for decoding each camera's video stream.
+
+### Recommendations for Raspberry Pi 5
+
+| Camera Count | Expected Performance |
+|---|---|
+| 1–2 cameras | Excellent — full detection rate, no frame drops |
+| 3–4 cameras | Good — slight increase in inference queue wait time, still reliable |
+| 5–6 cameras | Acceptable — recommend increasing `detection_interval` to 2–3s to reduce CPU load |
+| 7+ cameras | Not recommended without tuning — RTSP decode threads compete for CPU, frame drops likely |
+
+**Practical recommendation: 4 cameras is the sweet spot for a Pi 5 with Hailo HAT+.**
+
+### Tuning for Higher Camera Counts
+
+If you need to run more than 4 cameras, you can improve performance by editing `config.ini`:
+
+- **Increase `detection_interval`**: In the `[DETECTION]` section, set `detection_interval = 2` or `3`. This tells the processor to only analyze a frame every 2-3 seconds per camera, significantly reducing CPU load from frame preprocessing.
+- **Lower camera resolution/framerate**: If your cameras support it, lower the RTSP stream to 720p or 10-15 FPS. This reduces the amount of data the CPU needs to decode.

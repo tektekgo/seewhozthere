@@ -174,3 +174,15 @@ Bot is already set up and working. Token and chat_id are in `config.ini` on the 
 - [ ] **Docker containerization** — see `docs/future-enhancements.md`
 - [ ] **Tailscale remote access** — access dashboard from outside home network
 - [ ] **Multi-person recognition tuning** — test accuracy with multiple known people
+
+
+## Appendix: Camera Capacity
+
+**Recommendation for Pi 5 + Hailo HAT+:** 4 cameras is the sweet spot.
+
+| Camera Count | Expected Performance |
+|---|---|
+| 1–2 cameras | Excellent — full detection rate, no frame drops |
+| 3–4 cameras | Good — slight increase in inference queue wait time, still reliable |
+| 5–6 cameras | Acceptable — recommend increasing `detection_interval` to 2–3s to reduce CPU load |
+| 7+ cameras | Not recommended without tuning — RTSP decode threads compete for CPU, frame drops likely |
