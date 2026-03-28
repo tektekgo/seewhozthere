@@ -4,54 +4,61 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 220 20% 10%;
+    /* ── Light mode ─────────────────────────────────────────────────────────
+       Cool slate-blue tinted background with clear card elevation,
+       rich blue primary, amber accent, and a dark coloured sidebar.
+    ──────────────────────────────────────────────────────────────────────── */
+
+    --background: 220 25% 93%;
+    --foreground: 222 30% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --card-foreground: 222 30% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover-foreground: 222 30% 12%;
 
-    --primary: 217 91% 60%;
+    --primary: 217 91% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 90%;
-    --secondary-foreground: 220 20% 10%;
+    --secondary: 217 30% 88%;
+    --secondary-foreground: 222 30% 20%;
 
-    --muted: 220 14% 92%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 220 20% 90%;
+    --muted-foreground: 220 12% 44%;
 
-    --accent: 43 96% 56%;
-    --accent-foreground: 220 20% 10%;
+    --accent: 43 96% 52%;
+    --accent-foreground: 222 30% 10%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 84% 58%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 87%;
-    --input: 220 13% 87%;
-    --ring: 217 91% 60%;
+    --border: 220 18% 82%;
+    --input: 220 18% 82%;
+    --ring: 217 91% 55%;
 
     --radius: 0.75rem;
 
-    --chart-known: 217 91% 60%;
-    --chart-unknown: 43 96% 56%;
-    --chart-camera1: 217 91% 60%;
-    --chart-camera2: 187 72% 50%;
-    --chart-camera3: 262 60% 58%;
-    --chart-camera4: 150 60% 45%;
+    --chart-known: 217 91% 55%;
+    --chart-unknown: 43 96% 52%;
+    --chart-camera1: 217 91% 55%;
+    --chart-camera2: 187 72% 44%;
+    --chart-camera3: 262 60% 56%;
+    --chart-camera4: 150 60% 42%;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217 91% 60%;
+    /* Sidebar — rich dark blue, contrasts well against the light page */
+    --sidebar-background: 222 45% 18%;
+    --sidebar-foreground: 210 30% 88%;
+    --sidebar-primary: 217 91% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 40% 25%;
+    --sidebar-accent-foreground: 210 30% 95%;
+    --sidebar-border: 222 35% 24%;
+    --sidebar-ring: 217 91% 65%;
   }
 
   .dark {
+    /* ── Dark mode — unchanged, already looks great ─────────────────────── */
     --background: 222 30% 8%;
     --foreground: 210 20% 92%;
 
@@ -106,4 +113,27 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ── Light mode: card elevation via shadow ──────────────────────────────────
+   Cards need a visible shadow in light mode so they lift off the background.
+   Dark mode relies on colour contrast alone — no shadow needed.
+─────────────────────────────────────────────────────────────────────────── */
+:root {
+  --card-shadow: 0 1px 4px 0 rgb(30 50 100 / 0.10), 0 1px 2px -1px rgb(30 50 100 / 0.07);
+}
+
+.dark {
+  --card-shadow: none;
+}
+
+/* Apply to shadcn Card components */
+:root .rounded-xl.border,
+:root .rounded-lg.border {
+  box-shadow: var(--card-shadow);
+}
+
+.dark .rounded-xl.border,
+.dark .rounded-lg.border {
+  box-shadow: none;
 }
