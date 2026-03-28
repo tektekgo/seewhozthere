@@ -4,39 +4,39 @@
 
 @layer base {
   :root {
-    --background: 220 25% 93%;
-    --foreground: 222 30% 12%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 30% 12%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 30% 12%;
-    --primary: 217 91% 55%;
+    --background: 220 30% 86%;
+    --foreground: 222 35% 10%;
+    --card: 220 22% 97%;
+    --card-foreground: 222 35% 10%;
+    --popover: 220 22% 97%;
+    --popover-foreground: 222 35% 10%;
+    --primary: 217 91% 52%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217 30% 88%;
-    --secondary-foreground: 222 30% 20%;
-    --muted: 220 20% 90%;
-    --muted-foreground: 220 12% 44%;
-    --accent: 43 96% 52%;
-    --accent-foreground: 222 30% 10%;
-    --destructive: 0 84% 58%;
+    --secondary: 218 25% 82%;
+    --secondary-foreground: 222 35% 14%;
+    --muted: 220 20% 88%;
+    --muted-foreground: 220 14% 40%;
+    --accent: 43 96% 50%;
+    --accent-foreground: 222 35% 8%;
+    --destructive: 0 84% 56%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 18% 82%;
-    --input: 220 18% 82%;
-    --ring: 217 91% 55%;
+    --border: 220 20% 78%;
+    --input: 220 20% 78%;
+    --ring: 217 91% 52%;
     --radius: 0.75rem;
-    --chart-known: 217 91% 55%;
-    --chart-unknown: 43 96% 52%;
-    --chart-camera1: 217 91% 55%;
-    --chart-camera2: 187 72% 44%;
-    --chart-camera3: 262 60% 56%;
-    --chart-camera4: 150 60% 42%;
-    --sidebar-background: 222 45% 18%;
+    --chart-known: 217 91% 52%;
+    --chart-unknown: 43 96% 50%;
+    --chart-camera1: 217 91% 52%;
+    --chart-camera2: 187 72% 42%;
+    --chart-camera3: 262 60% 54%;
+    --chart-camera4: 150 60% 40%;
+    --sidebar-background: 222 45% 16%;
     --sidebar-foreground: 210 30% 88%;
     --sidebar-primary: 217 91% 65%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 40% 25%;
+    --sidebar-accent: 222 40% 23%;
     --sidebar-accent-foreground: 210 30% 95%;
-    --sidebar-border: 222 35% 24%;
+    --sidebar-border: 222 35% 22%;
     --sidebar-ring: 217 91% 65%;
   }
   .dark {
@@ -79,7 +79,7 @@
   * { @apply border-border; }
   body { @apply bg-background text-foreground; }
 }
-:root { --card-shadow: 0 1px 4px 0 rgb(30 50 100 / 0.10 ), 0 1px 2px -1px rgb(30 50 100 / 0.07); }
-.dark { --card-shadow: none; }
-:root .rounded-xl.border, :root .rounded-lg.border { box-shadow: var(--card-shadow); }
+:root .rounded-xl.border, :root .rounded-lg.border {
+  box-shadow: 0 1px 4px 0 rgb(20 40 90 / 0.12), 0 1px 2px -1px rgb(20 40 90 / 0.08);
+}
 .dark .rounded-xl.border, .dark .rounded-lg.border { box-shadow: none; }
