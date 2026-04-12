@@ -38,21 +38,21 @@ class Analytics:
         today = datetime.now().date()
         cursor.execute("""
             SELECT COUNT(*) as count FROM sightings
-            WHERE DATE(timestamp) = ?
+            WHERE substr(timestamp, 1, 10) = ?
         """, (str(today),))
         today_activity = cursor.fetchone()['count']
 
         # Active cameras seen today
         cursor.execute("""
             SELECT COUNT(DISTINCT camera_name) as count FROM sightings
-            WHERE DATE(timestamp) = ?
+            WHERE substr(timestamp, 1, 10) = ?
         """, (str(today),))
         active_cameras = cursor.fetchone()['count']
 
         # Unknown detections today (no visitor assigned)
         cursor.execute("""
             SELECT COUNT(*) as count FROM sightings
-            WHERE DATE(timestamp) = ? AND visitor_id IS NULL
+            WHERE substr(timestamp, 1, 10) = ? AND visitor_id IS NULL
         """, (str(today),))
         unknown_today = cursor.fetchone()['count']
 
@@ -83,9 +83,9 @@ class Analytics:
         
         # Get known visitors by hour
         cursor.execute("""
-            SELECT strftime('%H', timestamp) as hour, COUNT(*) as count
+            SELECT substr(timestamp, 12, 2) as hour, COUNT(*) as count
             FROM sightings
-            WHERE DATE(timestamp) = ? AND visitor_id IS NOT NULL
+            WHERE substr(timestamp, 1, 10) = ? AND visitor_id IS NOT NULL
             GROUP BY hour
         """, (str(today),))
         
@@ -95,9 +95,9 @@ class Analytics:
         
         # Get unknown visitors by hour
         cursor.execute("""
-            SELECT strftime('%H', timestamp) as hour, COUNT(*) as count
+            SELECT substr(timestamp, 12, 2) as hour, COUNT(*) as count
             FROM sightings
-            WHERE DATE(timestamp) = ? AND visitor_id IS NULL
+            WHERE substr(timestamp, 1, 10) = ? AND visitor_id IS NULL
             GROUP BY hour
         """, (str(today),))
         
@@ -117,13 +117,13 @@ class Analytics:
         
         cursor.execute("""
             SELECT COUNT(*) as count FROM sightings 
-            WHERE DATE(timestamp) = ? AND visitor_id IS NOT NULL
+            WHERE substr(timestamp, 1, 10) = ? AND visitor_id IS NOT NULL
         """, (str(today),))
         known = cursor.fetchone()['count']
         
         cursor.execute("""
             SELECT COUNT(*) as count FROM sightings 
-            WHERE DATE(timestamp) = ? AND visitor_id IS NULL
+            WHERE substr(timestamp, 1, 10) = ? AND visitor_id IS NULL
         """, (str(today),))
         unknown = cursor.fetchone()['count']
         
@@ -147,7 +147,7 @@ class Analytics:
             
             cursor.execute("""
                 SELECT COUNT(*) as count FROM sightings 
-                WHERE DATE(timestamp) = ?
+                WHERE substr(timestamp, 1, 10) = ?
             """, (str(date),))
             
             count = cursor.fetchone()['count']
@@ -170,7 +170,7 @@ class Analytics:
         cursor.execute("""
             SELECT camera_name, COUNT(*) as count
             FROM sightings
-            WHERE DATE(timestamp) = ?
+            WHERE substr(timestamp, 1, 10) = ?
             GROUP BY camera_name
             ORDER BY count DESC
         """, (str(today),))
@@ -201,7 +201,7 @@ class Analytics:
                 v.thumbnail_path
             FROM visitors v
             LEFT JOIN sightings s ON v.id = s.visitor_id
-            WHERE DATE(s.timestamp) = ?
+            WHERE substr(s.timestamp, 1, 10) = ?
             GROUP BY v.id
             ORDER BY count DESC
             LIMIT ?
@@ -238,7 +238,7 @@ class Analytics:
                 v.name as visitor_name
             FROM sightings s
             LEFT JOIN visitors v ON s.visitor_id = v.id
-            WHERE DATE(s.timestamp) = ?
+            WHERE substr(s.timestamp, 1, 10) = ?
             ORDER BY s.timestamp DESC
             LIMIT ?
         """, (str(today), limit))
@@ -277,11 +277,11 @@ class Analytics:
         
         cursor.execute("""
             SELECT 
-                strftime('%w', timestamp) as day_of_week,
-                strftime('%H', timestamp) as hour,
+                strftime('%w', substr(timestamp, 1, 19)) as day_of_week,
+                substr(timestamp, 12, 2) as hour,
                 COUNT(*) as count
             FROM sightings
-            WHERE DATE(timestamp) >= ?
+            WHERE substr(timestamp, 1, 10) >= ?
             GROUP BY day_of_week, hour
         """, (str(start_date),))
         

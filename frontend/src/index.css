@@ -56,44 +56,33 @@
     --sidebar-border: 222 35% 24%;
     --sidebar-ring: 217 91% 65%;
   }
-
   .dark {
     /* ── Dark mode — unchanged, already looks great ─────────────────────── */
     --background: 222 30% 8%;
     --foreground: 210 20% 92%;
-
     --card: 222 25% 11%;
     --card-foreground: 210 20% 92%;
-
     --popover: 222 25% 11%;
     --popover-foreground: 210 20% 92%;
-
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 222 20% 16%;
     --secondary-foreground: 210 20% 92%;
-
     --muted: 222 20% 16%;
     --muted-foreground: 215 15% 55%;
-
     --accent: 43 96% 56%;
     --accent-foreground: 222 30% 8%;
-
     --destructive: 0 62% 30%;
     --destructive-foreground: 210 20% 92%;
-
     --border: 222 20% 18%;
     --input: 222 20% 18%;
     --ring: 217 91% 60%;
-
     --chart-known: 217 91% 60%;
     --chart-unknown: 43 96% 56%;
     --chart-camera1: 217 91% 60%;
     --chart-camera2: 187 72% 50%;
     --chart-camera3: 262 60% 58%;
     --chart-camera4: 150 60% 45%;
-
     --sidebar-background: 222 25% 10%;
     --sidebar-foreground: 210 20% 92%;
     --sidebar-primary: 217 91% 60%;
@@ -104,15 +93,9 @@
     --sidebar-ring: 217 91% 60%;
   }
 }
-
 @layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-  }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
 }
 
 /* ── Light mode: card elevation via shadow ──────────────────────────────────
