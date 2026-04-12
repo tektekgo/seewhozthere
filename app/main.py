@@ -121,23 +121,27 @@ app.add_middleware(AuthMiddleware)
 APP_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = APP_DIR.parent
 
-# Mount static directories
+# Define dashboard directory paths
+dashboard_dir = APP_DIR / "static" / "dashboard"
+dashboard_assets_dir = dashboard_dir / "assets"
+
+# Mount React dashboard assets FIRST — must come before the broad /static mount
+# because /static/dashboard/ would otherwise intercept /dashboard/assets/* requests.
+if dashboard_assets_dir.exists():
+    app.mount("/dashboard/assets", StaticFiles(directory=dashboard_assets_dir), name="dashboard_assets")
+
+# Mount broad static directory (covers /static/mock_faces etc.)
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 app.mount("/data", StaticFiles(directory=PROJECT_ROOT / "data"), name="data")
 
-# Mount React dashboard (if built)
-dashboard_dir = APP_DIR / "static" / "dashboard"
+# Serve root-level dashboard files (favicon.ico, logo PNGs, robots.txt etc.)
+# These are referenced as /dashboard/favicon.ico etc. in the built index.html
 if dashboard_dir.exists():
-    app.mount("/dashboard/assets", StaticFiles(directory=dashboard_dir / "assets"), name="dashboard_assets")
-    # Serve root-level dashboard files (favicon.ico, logo PNGs, robots.txt etc.)
-    # These are referenced as /dashboard/favicon.ico etc. in the built index.html
     from starlette.responses import FileResponse as _FileResponse
-    from pathlib import Path as _Path
     _dashboard_root_files = ["favicon.ico", "favicon.png", "logo.png", "logo-16.png", "logo-32.png", "logo-192.png", "robots.txt", "placeholder.svg"]
     for _fname in _dashboard_root_files:
         _fpath = dashboard_dir / _fname
         if _fpath.exists():
-            # Create a closure to capture the correct path
             def _make_handler(p):
                 async def _handler():
                     return _FileResponse(str(p))
