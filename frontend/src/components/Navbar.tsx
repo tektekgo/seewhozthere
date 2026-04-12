@@ -149,9 +149,9 @@ export function Navbar({ onLogout }: { onLogout?: () => void }) {
         <div className="container flex h-14 items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 font-bold text-lg">
-            <img src={logo} alt="SeeWhozThere logo" className="h-8 w-8 object-contain" />
+            <img src={logo} alt="SeeWhozThere™ logo" className="h-8 w-8 object-contain" />
             <div className="flex flex-col leading-tight">
-              <span className="text-base font-bold">SeeWhozThere</span>
+              <span className="text-base font-bold">SeeWhozThere™</span>
               <span className="text-[10px] font-normal text-muted-foreground hidden sm:block">Smart Home Security</span>
             </div>
           </Link>

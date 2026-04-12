@@ -46,12 +46,12 @@ export default function Login({ onSuccess, defaultPassphrase }: LoginProps) {
         <div className="flex flex-col items-center gap-4">
           <img
             src={logo}
-            alt="SeeWhozThere"
+            alt="SeeWhozThere™"
             className="h-24 w-24 object-contain drop-shadow-lg"
           />
           <div className="text-center space-y-1">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              SeeWhozThere
+              SeeWhozThere™
             </h1>
             <p className="text-sm text-muted-foreground">Smart Home Security</p>
           </div>
@@ -108,7 +108,7 @@ export default function Login({ onSuccess, defaultPassphrase }: LoginProps) {
 
         {/* Footer */}
         <p className="text-center text-[11px] text-muted-foreground">
-          SeeWhozThere &middot; Smart Home Security &middot;{" "}
+          SeeWhozThere™ &middot; Smart Home Security &middot;{" "}
           <a
             href="https://github.com/tektekgo/seewhozthere"
             target="_blank"

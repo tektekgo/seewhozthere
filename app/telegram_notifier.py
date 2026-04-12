@@ -102,7 +102,8 @@ def send_unknown_face_alert(camera_name: str, snapshot_path: Optional[str] = Non
     caption = (
         f"<b>Unknown visitor detected</b>\n"
         f"Camera: {camera_name}\n"
-        f"Time: {now}"
+        f"Time: {now}\n"
+        f"\u2014 SeeWhozThere™"
     )
 
     if snapshot_path and os.path.exists(snapshot_path):
@@ -131,7 +132,8 @@ def send_known_face_alert(visitor_name: str, camera_name: str, snapshot_path: Op
     caption = (
         f"<b>{visitor_name} spotted</b>\n"
         f"Camera: {camera_name}\n"
-        f"Time: {now}"
+        f"Time: {now}\n"
+        f"\u2014 SeeWhozThere™"
     )
 
     if snapshot_path and os.path.exists(snapshot_path):
@@ -168,7 +170,7 @@ def send_daily_summary():
     unknown_count = len(summary) - known_count
 
     lines = [
-        f"<b>SeeWhozThere Daily Summary</b>",
+        f"<b>SeeWhozThere™ Daily Summary</b>",
         f"Date: {today.strftime('%A, %B %d %Y')}",
         "",
         f"Total sightings today: <b>{total_sightings}</b>",

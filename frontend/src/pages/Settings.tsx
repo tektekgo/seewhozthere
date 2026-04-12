@@ -345,14 +345,14 @@ const Settings = () => {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4" />About SeeWhozThere
+                <Shield className="h-4 w-4" />About SeeWhozThere™
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-0.5">
                   <p className="text-xs text-muted-foreground">Product</p>
-                  <p className="font-medium">SeeWhozThere</p>
+                  <p className="font-medium">SeeWhozThere™</p>
                 </div>
                 <div className="space-y-0.5">
                   <p className="text-xs text-muted-foreground">Built by</p>
