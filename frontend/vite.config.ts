@@ -18,4 +18,18 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    // Use stable filenames so a git pull + service restart is all that's needed
+    // (no more hash-mismatch 404s when the Pi serves a cached index.html)
+    rollupOptions: {
+      output: {
+        entryFileNames: "assets/index.js",
+        chunkFileNames: "assets/[name].js",
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.endsWith(".css")) return "assets/index.css";
+          return "assets/[name][extname]";
+        },
+      },
+    },
+  },
 }));
