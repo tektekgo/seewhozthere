@@ -58,6 +58,7 @@ class HailoProcessorV2:
         self.db = get_db()
         self.running = False
         self.camera_threads = {}
+        self.camera_urls = {}  # Stores rtsp_url per camera for watchdog restarts
         self.frame_queues = {}
         self.hailo_available = self._check_hailo_device()
         
@@ -471,6 +472,7 @@ class HailoProcessorV2:
         
         # Start a thread for each camera
         for camera_name, rtsp_url in cameras.items():
+            self.camera_urls[camera_name] = rtsp_url
             thread = threading.Thread(
                 target=self._process_camera_stream,
                 args=(camera_name, rtsp_url),
@@ -480,6 +482,34 @@ class HailoProcessorV2:
             self.camera_threads[camera_name] = thread
         
         print(f"[HailoProcessorV2] Started processing {len(cameras)} camera(s)")
+        
+        # Start watchdog thread to automatically restart dead camera threads
+        watchdog = threading.Thread(target=self._camera_watchdog, daemon=True)
+        watchdog.start()
+        print("[HailoProcessorV2] Camera watchdog started")
+    
+    def _camera_watchdog(self):
+        """Watchdog: checks every 30s if any camera thread has died and restarts it automatically."""
+        while self.running:
+            time.sleep(30)
+            if not self.running:
+                break
+            for camera_name, thread in list(self.camera_threads.items()):
+                if not thread.is_alive():
+                    rtsp_url = self.camera_urls.get(camera_name)
+                    if rtsp_url:
+                        print(f"[HailoProcessorV2] Watchdog: '{camera_name}' thread is dead — restarting in 10s...")
+                        time.sleep(10)
+                        if not self.running:
+                            break
+                        new_thread = threading.Thread(
+                            target=self._process_camera_stream,
+                            args=(camera_name, rtsp_url),
+                            daemon=True
+                        )
+                        new_thread.start()
+                        self.camera_threads[camera_name] = new_thread
+                        print(f"[HailoProcessorV2] Watchdog: restarted thread for '{camera_name}'")
     
     def stop(self):
         """Stop processing all cameras"""

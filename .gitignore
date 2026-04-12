@@ -34,6 +34,11 @@ data/
 # Test output files
 test_output/
 
+# Hailo runtime log and downloaded model files (Pi-specific, not for version control)
+hailort.log
+models/
+test_frame.jpg
+
 # Node.js dependencies and build output
 frontend/node_modules/
 frontend/dist/
