@@ -62,6 +62,14 @@ export const api = {
     const res = await fetch(`${baseUrl}/api/visitors/${id}`, { method: "DELETE" });
     return res.json();
   },
+  updateVisitor: async (id: number, name?: string, photo?: File) => {
+    const baseUrl = getApiUrl();
+    const form = new FormData();
+    if (name) form.append("name", name);
+    if (photo) form.append("photo", photo);
+    const res = await fetch(`${baseUrl}/api/visitors/${id}`, { method: "PUT", body: form });
+    return res.json();
+  },
 
   // --- Sightings (detection events) ---
   getUnknownSightings: (limit = 50) =>

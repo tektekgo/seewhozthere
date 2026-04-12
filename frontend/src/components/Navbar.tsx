@@ -26,6 +26,7 @@ import { toast } from "sonner";
 const navItems = [
   { label: "Dashboard", path: "/" },
   { label: "History", path: "/history" },
+  { label: "People", path: "/people" },
   { label: "Settings", path: "/settings" },
 ];
 

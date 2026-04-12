@@ -21,7 +21,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 import cv2
-
+from PIL import Image
 from contextlib import asynccontextmanager
 
 # Import our configuration settings
@@ -233,21 +233,43 @@ async def serve_dashboard(path: str = ""):
 
 @app.get("/api/visitors")
 async def get_all_visitors():
-    """Get all known visitors."""
+    """Get all known visitors with sighting counts."""
     db = get_db()
     visitors = db.get_all_visitors()
-    
+
+    # Fetch sighting counts per visitor in one query
+    sighting_counts: dict = {}
+    last_seen_map: dict = {}
+    try:
+        conn = db._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT visitor_id, COUNT(*) as cnt, MAX(timestamp) as last_seen
+            FROM sightings
+            WHERE visitor_id IS NOT NULL
+            GROUP BY visitor_id
+        """)
+        for row in cursor.fetchall():
+            sighting_counts[row['visitor_id']] = row['cnt']
+            last_seen_map[row['visitor_id']] = row['last_seen']
+        conn.close()
+    except Exception:
+        pass
+
     # Format for API response
     result = []
     for visitor in visitors:
+        vid = visitor['id']
         result.append({
-            "id": visitor['id'],
+            "id": vid,
             "name": visitor['name'],
             "thumbnail_path": visitor.get('thumbnail_path'),
             "created_at": visitor['created_at'].isoformat() if visitor.get('created_at') else None,
-            "has_encoding": visitor.get('face_encoding') is not None
+            "has_encoding": visitor.get('face_encoding') is not None,
+            "sighting_count": sighting_counts.get(vid, 0),
+            "last_seen": last_seen_map.get(vid),
         })
-    
+
     return {"visitors": result}
 
 
@@ -286,10 +308,15 @@ async def add_visitor(
     
     name = name.strip()
     
-    # Check if visitor already exists
+    # Check if visitor already exists — if so, treat as an update (upsert)
     existing = db.get_visitor_by_name(name)
     if existing:
-        raise HTTPException(status_code=400, detail=f"Visitor '{name}' already exists")
+        # Delegate to the update path so re-submitting with a photo fixes a partial record
+        return await update_visitor(
+            visitor_id=existing['id'],
+            name=name,
+            photo=photo,
+        )
     
     thumbnail_path = None
     face_encoding_blob = None
@@ -315,20 +342,32 @@ async def add_visitor(
             thumbnail_filename = f"{safe_name}_{timestamp}.jpg"
             thumbnail_path = thumbnails_dir / thumbnail_filename
             
-            # Resize and save thumbnail
-            thumbnail = cv2.resize(img, (200, 200))
+            # ── Image optimisation ──────────────────────────────────────────────
+            # Resize large images to max 800×800 before encoding/saving
+            MAX_DIM = 800
+            h, w = img.shape[:2]
+            if max(h, w) > MAX_DIM:
+                scale = MAX_DIM / max(h, w)
+                img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
+            # Save thumbnail (200×200 square crop from centre)
+            th, tw = img.shape[:2]
+            side = min(th, tw)
+            y0 = (th - side) // 2
+            x0 = (tw - side) // 2
+            thumbnail = cv2.resize(img[y0:y0+side, x0:x0+side], (200, 200))
             cv2.imwrite(str(thumbnail_path), thumbnail)
-            
+
             # Convert to relative path for database
             thumbnail_path_str = f"data/thumbnails/{thumbnail_filename}"
-            
+
             # Generate face encoding
             encoding = face_recognition.encode_face(img)
             face_encoding_blob = encoding.tobytes()
-            
+
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error processing photo: {str(e)}")
-    
+
     # Add visitor to database
     try:
         visitor_id = db.add_visitor(
@@ -398,12 +437,23 @@ async def update_visitor(
             thumbnail_filename = f"{safe_name}_{timestamp}.jpg"
             thumbnail_path = thumbnails_dir / thumbnail_filename
             
-            # Resize and save thumbnail
-            thumbnail = cv2.resize(img, (200, 200))
+            # ── Image optimisation ──────────────────────────────────────────────
+            MAX_DIM = 800
+            h, w = img.shape[:2]
+            if max(h, w) > MAX_DIM:
+                scale = MAX_DIM / max(h, w)
+                img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
+            # Save thumbnail (200×200 square crop from centre)
+            th, tw = img.shape[:2]
+            side = min(th, tw)
+            y0 = (th - side) // 2
+            x0 = (tw - side) // 2
+            thumbnail = cv2.resize(img[y0:y0+side, x0:x0+side], (200, 200))
             cv2.imwrite(str(thumbnail_path), thumbnail)
-            
+
             update_data['thumbnail_path'] = f"data/thumbnails/{thumbnail_filename}"
-            
+
             # Generate new face encoding
             encoding = face_recognition.encode_face(img)
             update_data['face_encoding'] = encoding.tobytes()

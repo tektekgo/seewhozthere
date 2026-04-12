@@ -10,6 +10,7 @@ import { Footer } from "@/components/Footer";
 import Index from "./pages/Index";
 import History from "./pages/History";
 import Settings from "./pages/Settings";
+import People from "./pages/People";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -50,6 +51,7 @@ function ProtectedLayout({
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/history" element={<History />} />
+          <Route path="/people" element={<People />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
