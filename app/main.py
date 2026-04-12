@@ -346,7 +346,8 @@ async def add_visitor(
         
         return {
             "success": True,
-            "visitor_id": visitor_id,
+            "id": visitor_id,          # used by frontend NameDialog (addRes.id)
+            "visitor_id": visitor_id,  # kept for backward compatibility
             "name": name,
             "has_encoding": face_encoding_blob is not None
         }
