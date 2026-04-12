@@ -28,21 +28,40 @@ function CustomTooltip({ active, payload, label }: {
   );
 }
 
-export function WeeklyTrendChart({ data }: { data: WeeklyTrend[] }) {
+export function WeeklyTrendChart({
+  data,
+  onPointClick,
+}: {
+  data: WeeklyTrend[];
+  onPointClick?: (date: string) => void;
+}) {
+  const handleClick = (chartData: { activePayload?: { payload: WeeklyTrend & { date?: string } }[] }) => {
+    if (!onPointClick || !chartData?.activePayload?.[0]) return;
+    const entry = chartData.activePayload[0].payload;
+    if (entry.date) onPointClick(entry.date);
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Weekly Trend — Last 7 Days</CardTitle>
-        <CardDescription>Total face detections per day over the past week</CardDescription>
+        <CardDescription>
+          Total face detections per day — click a point to drill into that day
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 20, right: 16, left: 8, bottom: 28 }}>
+            <LineChart
+              data={data}
+              margin={{ top: 20, right: 16, left: 8, bottom: 28 }}
+              onClick={onPointClick ? handleClick : undefined}
+              style={onPointClick ? { cursor: "pointer" } : undefined}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="day" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}>
                 <Label
-                  value="Day of Week"
+                  value="Day of Week — click to filter"
                   offset={-14}
                   position="insideBottom"
                   style={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
@@ -68,7 +87,7 @@ export function WeeklyTrendChart({ data }: { data: WeeklyTrend[] }) {
                 stroke="hsl(var(--primary))"
                 strokeWidth={2.5}
                 dot={{ r: 4, fill: "hsl(var(--primary))", strokeWidth: 0 }}
-                activeDot={{ r: 6 }}
+                activeDot={{ r: 7, strokeWidth: 2, stroke: "hsl(var(--primary))", fill: "hsl(var(--background))" }}
               >
                 <LabelList
                   dataKey="visitors"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { StatsCards } from "@/components/dashboard/StatsCards";
 import { HourlyActivityChart } from "@/components/dashboard/HourlyActivityChart";
 import { KnownUnknownChart } from "@/components/dashboard/KnownUnknownChart";
@@ -66,6 +67,7 @@ function toTime(dt: string): string {
 const emptyStats: Stats = { totalDetections: 0, todayDetections: 0, activeCameras: 0, unknownToday: 0 };
 
 const Index = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [hourly, setHourly] = useState<HourlyActivity[]>(mockHourlyData);
   const [knownUnknown, setKnownUnknown] = useState(mockKnownVsUnknown);
@@ -153,12 +155,19 @@ const Index = () => {
         todayActivity={stats.todayDetections}
         activeCameras={stats.activeCameras}
         unknownToday={stats.unknownToday}
+        onTotalClick={() => navigate("/history")}
+        onTodayClick={() => navigate("/history?date=today")}
+        onUnknownClick={() => navigate("/history?date=today&status=unknown")}
+        onCamerasClick={() => navigate("/history?date=today")}
       />
 
       {/* Charts Row 1 */}
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <HourlyActivityChart data={hourly} />
+          <HourlyActivityChart
+            data={hourly}
+            onBarClick={(hour) => navigate(`/history?date=today&hour=${hour}`)}
+          />
         </div>
         <KnownUnknownChart known={knownUnknown.known} unknown={knownUnknown.unknown} />
       </div>
@@ -166,7 +175,10 @@ const Index = () => {
       {/* Charts Row 2 */}
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <WeeklyTrendChart data={weekly} />
+          <WeeklyTrendChart
+            data={weekly}
+            onPointClick={(date) => navigate(`/history?date=${date}`)}
+          />
         </div>
         <TopVisitors visitors={topVisitorsMapped} />
       </div>

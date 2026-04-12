@@ -154,6 +154,7 @@ class Analytics:
             
             weekly_data.append({
                 "day": day_name,
+                "date": str(date),  # ISO date e.g. "2025-04-12" for drill-down
                 "visitors": count
             })
         

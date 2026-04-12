@@ -62,11 +62,24 @@ function CustomTooltip({ active, payload, label }: {
   );
 }
 
-export function HourlyActivityChart({ data }: { data: HourlyActivity[] }) {
+export function HourlyActivityChart({
+  data,
+  onBarClick,
+}: {
+  data: HourlyActivity[];
+  onBarClick?: (hour: string) => void;
+}) {
   // Only show tick labels every 3 hours to avoid crowding
   const tickFormatter = (value: string) => {
     const hour = parseInt(value.split(":")[0], 10);
     return hour % 3 === 0 ? value : "";
+  };
+
+  const handleClick = (barData: { activePayload?: { payload: HourlyActivity }[] }) => {
+    if (!onBarClick || !barData?.activePayload?.[0]) return;
+    const hour = barData.activePayload[0].payload.hour; // e.g. "14:00"
+    const hourNum = hour.split(":")[0]; // "14"
+    onBarClick(hourNum);
   };
 
   return (
@@ -74,7 +87,7 @@ export function HourlyActivityChart({ data }: { data: HourlyActivity[] }) {
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Hourly Activity — {todayLabel}</CardTitle>
         <CardDescription>
-          Number of face detections per hour today, split by identified vs unknown visitors
+          Number of face detections per hour today — click a bar to drill into that hour
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -88,10 +101,19 @@ export function HourlyActivityChart({ data }: { data: HourlyActivity[] }) {
             <span className="inline-block h-3 w-3 rounded-sm" style={{ background: "hsl(var(--chart-unknown))" }} />
             Unknown
           </span>
+          {onBarClick && (
+            <span className="ml-auto text-xs text-muted-foreground/60 italic">Click a bar to filter History</span>
+          )}
         </div>
         <div className="h-60">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} barGap={0} margin={{ top: 8, right: 8, left: 8, bottom: 28 }}>
+            <BarChart
+              data={data}
+              barGap={0}
+              margin={{ top: 8, right: 8, left: 8, bottom: 28 }}
+              onClick={onBarClick ? handleClick : undefined}
+              style={onBarClick ? { cursor: "pointer" } : undefined}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
                 dataKey="hour"

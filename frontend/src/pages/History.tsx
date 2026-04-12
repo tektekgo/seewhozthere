@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Search, UserCheck, UserX, Camera, Clock, Calendar,
   Plus, Tag, Trash2, RefreshCw, CheckSquare, Square,
-  CheckCheck, X, Users, Video,
+  CheckCheck, X, Users, Video, Filter as FilterIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,11 @@ function formatDateTime(iso: string | null): { date: string; time: string } {
       hour: "2-digit", minute: "2-digit", second: "2-digit",
     }),
   };
+}
+
+/** Return YYYY-MM-DD for a Date (or "today") */
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
 // ─── Name Dialog (single or bulk) ─────────────────────────────────────────────
@@ -145,14 +151,11 @@ function NameDialog({ sightingIds, previewSighting, knownVisitors, onClose, onNa
         {/* Bulk preview strip */}
         {isBulk && (
           <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {sightingIds.slice(0, 8).map((id) => {
-              const s = previewSighting; // we pass the first one; grid handles the rest
-              return (
-                <div key={id} className="shrink-0 h-14 w-14 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground border">
-                  #{id}
-                </div>
-              );
-            })}
+            {sightingIds.slice(0, 8).map((id) => (
+              <div key={id} className="shrink-0 h-14 w-14 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground border">
+                #{id}
+              </div>
+            ))}
             {sightingIds.length > 8 && (
               <div className="shrink-0 h-14 w-14 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground border">
                 +{sightingIds.length - 8}
@@ -282,7 +285,9 @@ function AddVisitorDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving || !name.trim()}>{saving ? "Adding…" : "Add Visitor"}</Button>
+          <Button onClick={handleSave} disabled={saving || !name.trim()}>
+            {saving ? "Adding…" : "Add Visitor"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -306,97 +311,69 @@ function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onNam
 
   return (
     <Card
-      className={`overflow-hidden transition-all cursor-pointer group ${
+      className={`cursor-pointer transition-all duration-150 ${
         selected
           ? "ring-2 ring-primary shadow-md"
-          : "hover:shadow-md hover:border-primary/30"
+          : "hover:shadow-md hover:ring-1 hover:ring-border"
       }`}
       onClick={() => onToggleSelect(sighting.id)}
     >
-      <CardContent className="p-0">
-        <div className="flex">
-          {/* Thumbnail */}
-          <div className="shrink-0 w-28 h-28 bg-muted relative">
-            {sighting.snapshot_url ? (
-              <img
-                src={sighting.snapshot_url}
-                alt={sighting.visitor_name ?? "Unknown person"}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <UserX className="h-10 w-10 text-muted-foreground/40" />
-              </div>
-            )}
-
-            {/* Selection checkbox overlay */}
-            <div
-              className={`absolute top-1.5 left-1.5 transition-opacity ${
-                selectionMode || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-              }`}
-            >
-              <div
-                className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
-                  selected
-                    ? "bg-primary border-primary text-primary-foreground"
-                    : "bg-background/80 border-border"
-                }`}
-              >
-                {selected && <CheckCheck className="h-3 w-3" />}
-              </div>
+      <CardContent className="p-3 flex gap-3">
+        {/* Snapshot / placeholder */}
+        <div className="relative shrink-0">
+          {sighting.snapshot_url ? (
+            <img
+              src={sighting.snapshot_url}
+              alt="Face snapshot"
+              className="h-20 w-20 rounded-md object-cover border border-border"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = "";
+                (e.target as HTMLImageElement).className = "h-20 w-20 rounded-md bg-muted border border-border";
+              }}
+            />
+          ) : (
+            <div className="h-20 w-20 rounded-md bg-muted border border-border flex items-center justify-center">
+              <Camera className="h-6 w-6 text-muted-foreground/40" />
             </div>
-
-            {/* Known/Unknown badge */}
-            <div className="absolute bottom-1 left-1">
-              <Badge
-                variant={isKnown ? "default" : "secondary"}
-                className={`text-[9px] px-1 py-0 ${isKnown ? "" : "bg-amber-500/80 text-white border-0"}`}
-              >
-                {isKnown ? "Known" : "Unknown"}
-              </Badge>
-            </div>
+          )}
+          {/* Selection indicator */}
+          <div className="absolute -top-1.5 -left-1.5">
+            {selected
+              ? <CheckSquare className="h-4 w-4 text-primary bg-background rounded" />
+              : selectionMode
+              ? <Square className="h-4 w-4 text-muted-foreground bg-background rounded" />
+              : null}
           </div>
+        </div>
 
-          {/* Info */}
-          <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
-            <div>
-              <p className="font-semibold text-sm truncate">
-                {sighting.visitor_name ?? "Unknown Person"}
-              </p>
-              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                <Calendar className="h-3 w-3 shrink-0" /><span>{date}</span>
-              </div>
-              <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3 shrink-0" /><span>{time}</span>
-              </div>
-              <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-                <Camera className="h-3 w-3 shrink-0" />
-                <span className="truncate capitalize">
-                  {sighting.camera_name?.replace(/_/g, " ") ?? "Unknown camera"}
-                </span>
-              </div>
-            </div>
-            <div className="flex gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
-              {!isKnown && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs flex-1"
-                  onClick={() => onName(sighting)}
-                >
-                  <Tag className="h-3 w-3 mr-1" />Name
-                </Button>
-              )}
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => onDelete(sighting.id)}
-                title="Delete sighting"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
+        {/* Info */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
+          <div className="flex items-start justify-between gap-1">
+            <Badge variant={isKnown ? "default" : "secondary"} className="text-xs shrink-0">
+              {isKnown ? <UserCheck className="h-3 w-3 mr-1" /> : <UserX className="h-3 w-3 mr-1" />}
+              {sighting.visitor_name ?? "Unknown"}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+            <Camera className="h-3 w-3 shrink-0" />
+            {sighting.camera_name}
+          </p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Calendar className="h-3 w-3 shrink-0" />{date}
+          </p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Clock className="h-3 w-3 shrink-0" />{time}
+          </p>
+          {/* Action buttons */}
+          <div className="flex gap-1.5 mt-auto pt-1" onClick={(e) => e.stopPropagation()}>
+            {!isKnown && (
+              <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={() => onName(sighting)}>
+                <Tag className="h-3 w-3 mr-1" />Name
               </Button>
-            </div>
+            )}
+            <Button size="sm" variant="ghost" className="h-6 text-xs px-2 text-destructive hover:text-destructive" onClick={() => onDelete(sighting.id)}>
+              <Trash2 className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       </CardContent>
@@ -404,15 +381,47 @@ function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onNam
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Active Filter Banner ─────────────────────────────────────────────────────
+
+function ActiveFilterBanner({
+  dateFilter, hourFilter, onClear,
+}: { dateFilter: string | null; hourFilter: string | null; onClear: () => void }) {
+  if (!dateFilter && !hourFilter) return null;
+
+  const parts: string[] = [];
+  if (dateFilter) {
+    const label = dateFilter === toIsoDate(new Date()) ? "today" : dateFilter;
+    parts.push(`Date: ${label}`);
+  }
+  if (hourFilter) parts.push(`Hour: ${hourFilter}:00`);
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-sm">
+      <FilterIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+      <span className="text-primary font-medium">Filtered — {parts.join(", ")}</span>
+      <Button variant="ghost" size="sm" className="h-5 px-1.5 ml-auto text-xs" onClick={onClear}>
+        <X className="h-3 w-3 mr-0.5" />Clear
+      </Button>
+    </div>
+  );
+}
+
+// ─── Main History Component ───────────────────────────────────────────────────
 
 const History = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── State ─────────────────────────────────────────────────────────────────
   const [sightings, setSightings] = useState<Sighting[]>([]);
   const [knownVisitors, setKnownVisitors] = useState<KnownVisitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
   const [cameraFilter, setCameraFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+
+  // URL-driven filters (from dashboard drill-down)
+  const [dateFilter, setDateFilter] = useState<string | null>(null);   // "YYYY-MM-DD"
+  const [hourFilter, setHourFilter] = useState<string | null>(null);   // "14" (zero-padded)
 
   // Single-item dialogs
   const [namingSighting, setNamingSighting] = useState<Sighting | null>(null);
@@ -423,8 +432,26 @@ const History = () => {
   const [showBulkNameDialog, setShowBulkNameDialog] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
-  // ── Data loading ──────────────────────────────────────────────────────────
+  // ── Read URL params on mount ──────────────────────────────────────────────
+  useEffect(() => {
+    const status = searchParams.get("status");   // "unknown" | "known" | null
+    const date   = searchParams.get("date");     // "today" | "YYYY-MM-DD" | null
+    const hour   = searchParams.get("hour");     // "14" | null
 
+    if (status === "unknown") setFilter("unknown");
+    else if (status === "known") setFilter("known");
+
+    if (date === "today") {
+      setDateFilter(toIsoDate(new Date()));
+    } else if (date) {
+      setDateFilter(date);
+    }
+
+    if (hour) setHourFilter(hour.padStart(2, "0"));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  // ── Data loading ──────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -442,18 +469,29 @@ const History = () => {
   useEffect(() => { loadData(); }, [loadData]);
 
   // ── Filtering ─────────────────────────────────────────────────────────────
-
-  // Derive sorted unique camera names from all sightings
   const cameraNames = useMemo(() => {
     const names = Array.from(new Set(sightings.map((s) => s.camera_name).filter(Boolean)));
     return names.sort();
   }, [sightings]);
 
-  const filtered = sightings.filter((s) => {
+  const filtered = useMemo(() => sightings.filter((s) => {
     const isKnown = !!s.visitor_name;
     if (filter === "known" && !isKnown) return false;
     if (filter === "unknown" && isKnown) return false;
     if (cameraFilter !== "all" && s.camera_name !== cameraFilter) return false;
+
+    // Date filter
+    if (dateFilter && s.timestamp) {
+      const sDate = s.timestamp.slice(0, 10); // "YYYY-MM-DD"
+      if (sDate !== dateFilter) return false;
+    }
+
+    // Hour filter (only meaningful when date is also set)
+    if (hourFilter && s.timestamp) {
+      const sHour = s.timestamp.slice(11, 13); // "HH"
+      if (sHour !== hourFilter) return false;
+    }
+
     if (search) {
       const q = search.toLowerCase();
       if (
@@ -462,15 +500,13 @@ const History = () => {
       ) return false;
     }
     return true;
-  });
+  }), [sightings, filter, cameraFilter, dateFilter, hourFilter, search]);
 
   const knownCount = sightings.filter((s) => !!s.visitor_name).length;
   const unknownCount = sightings.filter((s) => !s.visitor_name).length;
 
   // ── Selection helpers ─────────────────────────────────────────────────────
-
   const selectionMode = selectedIds.size > 0;
-
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -478,19 +514,20 @@ const History = () => {
       return next;
     });
   };
-
-  const selectAll = () => {
-    setSelectedIds(new Set(filtered.map((s) => s.id)));
-  };
-
+  const selectAll = () => setSelectedIds(new Set(filtered.map((s) => s.id)));
   const clearSelection = () => setSelectedIds(new Set());
 
   const selectedUnknownIds = filtered
     .filter((s) => selectedIds.has(s.id) && !s.visitor_name)
     .map((s) => s.id);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
+  const clearUrlFilters = () => {
+    setDateFilter(null);
+    setHourFilter(null);
+    setSearchParams({});
+  };
 
+  // ── Actions ───────────────────────────────────────────────────────────────
   const handleNamed = (ids: number[], visitorName: string) => {
     setSightings((prev) =>
       prev.map((s) => ids.includes(s.id) ? { ...s, visitor_name: visitorName } : s)
@@ -543,6 +580,13 @@ const History = () => {
           </Button>
         </div>
       </div>
+
+      {/* Active URL filter banner */}
+      <ActiveFilterBanner
+        dateFilter={dateFilter}
+        hourFilter={hourFilter}
+        onClear={clearUrlFilters}
+      />
 
       {/* Search + filter bar */}
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
@@ -603,6 +647,11 @@ const History = () => {
         <span><strong className="text-foreground">{knownCount}</strong> identified</span>
         <span><strong className="text-amber-500">{unknownCount}</strong> unknown</span>
         <span><strong className="text-foreground">{sightings.length}</strong> total</span>
+        {(dateFilter || hourFilter) && (
+          <span className="text-primary font-medium">
+            — showing <strong>{filtered.length}</strong> matching filter
+          </span>
+        )}
       </div>
 
       {/* ── Bulk action toolbar (appears when items are selected) ── */}
@@ -653,10 +702,17 @@ const History = () => {
           <p className="text-sm text-muted-foreground">
             {sightings.length === 0
               ? "The detection service hasn't captured any faces yet. Make sure it's running and the camera is in view."
+              : (dateFilter || hourFilter)
+              ? "No detections match the selected time filter. Try clearing the filter."
               : search
               ? "No results match your search."
               : `No ${filter} detections to show.`}
           </p>
+          {(dateFilter || hourFilter) && (
+            <Button variant="outline" size="sm" onClick={clearUrlFilters}>
+              <X className="h-3.5 w-3.5 mr-1" />Clear Filter
+            </Button>
+          )}
           {sightings.length === 0 && (
             <p className="text-xs text-muted-foreground">
               Check Settings → Service tab to confirm the detection service is active.
