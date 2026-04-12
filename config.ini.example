@@ -53,7 +53,14 @@ snapshot_cooldown_seconds = 15
 
 # Minimum confidence score (0.0 to 1.0) for a face detection to be recorded.
 # Higher values = fewer false positives but may miss some real faces.
+# Recommended: 0.6 for indoor cameras, 0.80-0.85 for outdoor cameras.
 confidence_threshold = 0.6
+
+# Minimum face size in pixels (width x height) to be recorded.
+# Rejects small distant detections caused by foliage, shadows, or passing cars.
+# Recommended: 50x50 for indoor cameras, 80x80 or higher for outdoor cameras.
+min_face_width = 50
+min_face_height = 50
 
 [CAMERAS]
 # Add your camera RTSP streams here

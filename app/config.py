@@ -55,6 +55,8 @@ SECURITY_LOGIN_ENABLED = bool(SECURITY_PASSPHRASE.strip())
 # Detection settings
 DETECTION_COOLDOWN_SECONDS = _config.getfloat("DETECTION", "snapshot_cooldown_seconds", fallback=15.0)
 DETECTION_CONFIDENCE_THRESHOLD = _config.getfloat("DETECTION", "confidence_threshold", fallback=0.6)
+DETECTION_MIN_FACE_WIDTH = _config.getint("DETECTION", "min_face_width", fallback=50)
+DETECTION_MIN_FACE_HEIGHT = _config.getint("DETECTION", "min_face_height", fallback=50)
 
 # Camera settings — loaded at import time for backwards compatibility.
 # NOTE: Use get_cameras() in long-running services so a restart picks up changes.

@@ -34,7 +34,7 @@ import threading
 import queue
 import traceback
 
-from app.config import get_cameras, TIMEZONE, DETECTION_COOLDOWN_SECONDS, DETECTION_CONFIDENCE_THRESHOLD
+from app.config import get_cameras, TIMEZONE, DETECTION_COOLDOWN_SECONDS, DETECTION_CONFIDENCE_THRESHOLD, DETECTION_MIN_FACE_WIDTH, DETECTION_MIN_FACE_HEIGHT
 from app.database import get_db
 from app.hailo_face_detector_v4 import create_face_detector
 from app.face_recognition_engine import get_face_recognition_engine
@@ -66,7 +66,7 @@ class HailoProcessorV2:
         self.detection_interval = 1.0  # Process every N seconds per camera (frame rate throttle)
         self.snapshot_cooldown = DETECTION_COOLDOWN_SECONDS  # Min seconds between saved snapshots per camera
         self.confidence_threshold = DETECTION_CONFIDENCE_THRESHOLD
-        self.min_face_size = (50, 50)  # Minimum face dimensions in pixels
+        self.min_face_size = (DETECTION_MIN_FACE_WIDTH, DETECTION_MIN_FACE_HEIGHT)  # Read from config.ini [DETECTION]
         
         # Per-camera last-snapshot timestamp (used to enforce cooldown)
         self.last_snapshot_time: Dict[str, float] = {}
