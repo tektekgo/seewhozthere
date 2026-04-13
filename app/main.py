@@ -127,7 +127,39 @@ dashboard_assets_dir = dashboard_dir / "assets"
 
 # Mount React dashboard assets FIRST — must come before the broad /static mount
 # because /static/dashboard/ would otherwise intercept /dashboard/assets/* requests.
+#
+# index.js and index.css are served with Cache-Control: no-store so that
+# Cloudflare, browsers, and any proxy always fetch the latest build after a git pull.
+# Other assets (logo.png etc.) are served normally via StaticFiles.
 if dashboard_assets_dir.exists():
+    from starlette.responses import FileResponse as _AssetFileResponse
+    from starlette.requests import Request as _AssetRequest
+
+    _no_cache_assets = ["index.js", "index.css"]
+
+    def _make_no_cache_asset_handler(asset_path):
+        async def _handler(request: _AssetRequest):
+            return _AssetFileResponse(
+                str(asset_path),
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
+        return _handler
+
+    for _asset_name in _no_cache_assets:
+        _asset_path = dashboard_assets_dir / _asset_name
+        if _asset_path.exists():
+            app.add_api_route(
+                f"/dashboard/assets/{_asset_name}",
+                _make_no_cache_asset_handler(_asset_path),
+                methods=["GET"],
+                include_in_schema=False,
+            )
+
+    # All other assets (logo, fonts, etc.) served normally with default caching
     app.mount("/dashboard/assets", StaticFiles(directory=dashboard_assets_dir), name="dashboard_assets")
 
 # Mount broad static directory (covers /static/mock_faces etc.)
