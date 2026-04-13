@@ -1,360 +1,171 @@
-# 👁️ SeeWhozThere
+# SeeWhozThere®
 
-**Professional AI-Powered Face Detection and Recognition System for Raspberry Pi 5**
+SeeWhozThere® is an advanced, privacy-first home security and face recognition system designed specifically for the Raspberry Pi 5 with the Hailo-8L AI Accelerator. It processes local RTSP camera streams in real-time, identifies known and unknown visitors, and provides a beautiful web dashboard and Telegram notifications.
 
-SeeWhozThere is a commercial-grade home security system that uses the Raspberry Pi AI HAT+ (Hailo-8) to detect and recognize faces in real-time from RTSP camera feeds. It runs 24/7, stores snapshots, and provides a beautiful web dashboard for monitoring your property.
+<p align="center">
+  <img src="frontend/public/logo.png" width="120" alt="SeeWhozThere Logo">
+</p>
 
-![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)
+## 🌟 Features
 
-## ✨ Features
-
-### 🎯 Core Functionality
-- **Real-time Face Detection** - 25+ FPS using Hailo AI accelerator
-- **Face Recognition** - Identify known people automatically
-- **24/7 Continuous Monitoring** - Auto-start on boot with systemd
-- **Multi-Camera Support** - Monitor multiple RTSP cameras simultaneously
-- **Snapshot Storage** - Automatic capture and storage of detections
-- **Web Dashboard** - Beautiful, responsive interface with dark mode
-
-### 🔧 Management
-- **User Management** - Add, edit, and delete known people via web UI
-- **Photo Upload** - Train face recognition with uploaded photos
-- **Image Management** - Delete unwanted snapshots
-- **System Status** - Real-time monitoring of service health
-- **Auto-Recovery** - Automatic restart on failure
-
-### 🛡️ Privacy & Security
-- **100% Local** - All processing happens on your Raspberry Pi
-- **No Cloud** - Your data never leaves your network
-- **Private** - No external API calls or data sharing
-- **Secure** - Systemd service with security hardening
-
-## 📋 Requirements
-
-### Hardware
-- **Raspberry Pi 5** (4GB or 8GB RAM recommended)
-- **Raspberry Pi AI HAT+** (Hailo-8L or Hailo-8)
-- **IP Camera** with RTSP support (e.g., Tapo C310, C320WS)
-- **MicroSD Card** (32GB+ recommended)
-- **Power Supply** (Official Raspberry Pi 27W recommended)
-
-### Software
-- **Debian Trixie** (or Bookworm with HailoRT 4.23.0+)
-- **Python 3.11+**
-- **HailoRT 4.23.0+**
-
-### Network
-- Local network with camera access
-- Static IP recommended for Raspberry Pi
-
-## 🚀 Quick Start
-
-### 1. Clone the Repository
-
-```bash
-cd ~
-git clone https://github.com/tektekgo/seewhozthere.git
-cd seewhozthere
-```
-
-### 2. Install Dependencies
-
-```bash
-# Install Python packages
-sudo pip3 install -r requirements.txt
-
-# Verify Hailo device
-hailortcli scan
-```
-
-### 3. Configure Cameras
-
-```bash
-# Copy example configuration
-cp config.ini.example config.ini
-
-# Edit with your camera details
-nano config.ini
-```
-
-Example `config.ini`:
-```ini
-[cameras]
-front_door = rtsp://username:password@192.168.1.100:554/stream1
-backyard = rtsp://username:password@192.168.1.101:554/stream1
-
-[system]
-timezone = America/New_York
-port = 7222
-```
-
-### 4. Install as Service (Recommended)
-
-```bash
-# One-command installation
-./install_service.sh
-```
-
-This will:
-- Install systemd services
-- Enable auto-start on boot
-- Start the system immediately
-
-### 5. Access the Dashboard
-
-Open your browser and navigate to:
-```
-http://YOUR_PI_IP:7222
-```
-
-Example: `http://192.168.1.140:7222`
-
-## 📚 Documentation
-
-- **[Service Management Guide](SERVICE_MANAGEMENT.md)** - Managing systemd services
-- **[Hailo Setup Guide](HAILO_SETUP.md)** - Setting up the AI HAT+
-- **[Hardware Options](HARDWARE_OPTIONS.md)** - Choosing the right hardware
-- **[Migration Guide](MIGRATION_GUIDE.md)** - Upgrading from older versions
-
-## 🎨 Using the System
-
-### Adding Known People
-
-1. Click **"Add Person"** in the dashboard
-2. Enter the person's name
-3. Upload a clear photo of their face
-4. Click **"Add Person"**
-
-The system will automatically:
-- Generate a face encoding
-- Save the photo as a thumbnail
-- Start recognizing this person in future detections
-
-### Managing People
-
-1. Click **"Manage People"** in the navigation
-2. View all known people
-3. Delete people you no longer want to track
-
-### Viewing Detections
-
-The dashboard shows:
-- **Today's Activity** - All detections from today
-- **Known Visitors** - People the system recognized
-- **Unknown Visitors** - Unidentified faces
-- **Sighting Count** - How many times each person was seen
-- **First/Last Seen** - Timestamps for each visitor
-
-### Filtering
-
-Use the filter buttons to show:
-- **All** - Everyone detected today
-- **Known** - Only recognized people
-- **Unknown** - Only unidentified faces
-
-## 🔧 Configuration
-
-### Camera Configuration
-
-Edit `config.ini` to add or modify cameras:
-
-```ini
-[cameras]
-camera_name = rtsp://username:password@ip:port/stream_path
-```
-
-**Tips:**
-- Use lowercase, descriptive names (e.g., `front_door`, `backyard`)
-- Test RTSP URLs with VLC before adding to config
-- Use substream (lower resolution) for better performance
-
-### System Configuration
-
-```ini
-[system]
-timezone = America/New_York  # Your timezone
-port = 7222                   # Web dashboard port
-```
-
-### Detection Parameters
-
-Edit `app/hailo_processor_v2.py` to adjust:
-
-```python
-self.detection_interval = 1.0  # Seconds between detections
-self.confidence_threshold = 0.6  # Face detection confidence (0.0-1.0)
-self.min_face_size = (50, 50)  # Minimum face size in pixels
-```
-
-### Recognition Threshold
-
-Edit `app/face_recognition_engine.py`:
-
-```python
-self.recognition_threshold = 0.6  # Face matching threshold (0.0-1.0)
-```
-
-Lower = more strict matching (fewer false positives)
-Higher = more lenient matching (more false positives)
-
-## 🛠️ Troubleshooting
-
-### Service Won't Start
-
-```bash
-# Check service status
-sudo systemctl status seewhozthere
-
-# View logs
-sudo journalctl -u seewhozthere -n 50
-
-# Test manually
-cd ~/seewhozthere
-python3 run_service.py
-```
-
-### Camera Connection Failed
-
-1. Test RTSP URL in VLC Media Player
-2. Check camera IP address and credentials
-3. Verify network connectivity
-4. Check firewall settings
-
-### Hailo Device Not Found
-
-```bash
-# Check device
-ls -l /dev/hailo0
-
-# Verify HailoRT version
-hailortcli fw-control identify
-
-# Check permissions
-sudo usermod -a -G video $USER
-```
-
-### High CPU Usage
-
-This is normal - face detection is CPU-intensive. To reduce:
-
-1. Increase `detection_interval` in `hailo_processor_v2.py`
-2. Use camera substreams (lower resolution)
-3. Reduce number of cameras
-
-### Web Dashboard Not Accessible
-
-```bash
-# Check if service is running
-sudo systemctl status seewhozthere-web
-
-# Check port binding
-sudo netstat -tulpn | grep 7222
-
-# Test manually
-cd ~/seewhozthere
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port 7222
-```
-
-## 📊 Performance
-
-### Typical Performance (Raspberry Pi 5 + Hailo-8L)
-
-- **Face Detection**: 25-30 FPS (limited by camera, not Hailo)
-- **Processing Latency**: 30-50ms per frame
-- **Face Recognition**: Real-time (< 100ms per face)
-- **CPU Usage**: 40-60% (with 2 cameras)
-- **Memory Usage**: 500-800 MB
-
-### Optimization Tips
-
-1. **Use Substreams** - Lower resolution = faster processing
-2. **Adjust Detection Interval** - Process every 2-3 seconds instead of 1
-3. **Limit Cameras** - Start with 1-2 cameras, add more as needed
-4. **Use Wired Network** - More stable than WiFi
-5. **Overclock Pi** - Increase performance (advanced users)
-
-## 🔐 Security Best Practices
-
-1. **Change Default Passwords** - Use strong camera passwords
-2. **Use Static IPs** - Easier to manage and more secure
-3. **Firewall Rules** - Limit access to dashboard port
-4. **Regular Updates** - Keep system and packages updated
-5. **Backup Database** - Regularly backup `data/seewhozthere.db`
-
-## 📁 Project Structure
-
-```
-seewhozthere/
-├── app/
-│   ├── main.py                      # Web server and API
-│   ├── hailo_processor_v2.py        # Face detection & recognition
-│   ├── face_recognition_engine.py   # Face encoding & matching
-│   ├── database.py                  # SQLite database interface
-│   ├── config.py                    # Configuration loader
-│   ├── templates/
-│   │   └── index.html               # Web dashboard
-│   └── static/                      # CSS, JS, images
-├── data/
-│   ├── snapshots/                   # Face detection snapshots
-│   ├── thumbnails/                  # Person thumbnails
-│   ├── encodings/                   # Face encodings
-│   ├── seewhozthere.db             # SQLite database
-│   └── *.log                        # Log files
-├── models/
-│   └── retinaface_mobilenet_v1.hef  # Hailo face detection model
-├── run_service.py                   # Service runner (24/7 operation)
-├── install_service.sh               # Service installation script
-├── uninstall_service.sh             # Service removal script
-├── config.ini                       # Configuration (not in git)
-├── requirements.txt                 # Python dependencies
-└── README.md                        # This file
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **Hailo** - For the amazing AI HAT+ accelerator
-- **Raspberry Pi Foundation** - For the Raspberry Pi 5
-- **OpenCV** - For computer vision tools
-- **FastAPI** - For the web framework
-- **Tailwind CSS** - For the beautiful UI
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/tektekgo/seewhozthere/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/tektekgo/seewhozthere/discussions)
-- **Documentation**: See `docs/` folder
-
-## 🗺️ Roadmap
-
-- [ ] Mobile app (iOS/Android)
-- [ ] Telegram/Email notifications
-- [ ] Motion detection integration
-- [ ] Cloud backup (optional)
-- [ ] Multi-user authentication
-- [ ] Advanced analytics dashboard
-- [ ] Integration with Home Assistant
-- [ ] Docker support
-
-## ⭐ Star History
-
-If you find this project useful, please consider giving it a star on GitHub!
+- **Real-time Face Detection**: Powered by the Hailo-8L NPU for high-performance edge inference (25-30 FPS).
+- **Face Recognition**: Automatically identifies known visitors and flags unknown faces.
+- **Interactive Dashboard**: View live detections, filter history, correct misidentifications, and manage known people.
+- **Telegram Notifications**: Instant alerts with snapshots for unknown visitors, and daily summary reports.
+- **Privacy First**: 100% local processing. No cloud subscription, no video feeds sent to third-party servers.
+- **Cloudflare Tunnel Support**: Securely access your dashboard from anywhere without opening firewall ports.
 
 ---
 
-**Made with ❤️ for the Raspberry Pi and home automation community**
+## 📋 Hardware Requirements
+
+To run SeeWhozThere®, you will need:
+
+1. **Raspberry Pi 5** (4GB or 8GB RAM recommended)
+2. **Raspberry Pi AI HAT+** (with Hailo-8L NPU)
+3. **Active Cooling** (Active Cooler or similar recommended due to AI workload)
+4. **RTSP-enabled IP Cameras** (e.g., Reolink, Amcrest, Tapo, UniFi)
+5. **MicroSD Card or NVMe SSD** (32GB+ recommended)
+
+---
+
+## 🛠️ Step 1: Raspberry Pi OS & Hardware Setup
+
+1. Install **Raspberry Pi OS (64-bit) Bookworm** or later.
+2. Assemble the AI HAT+ according to the official Raspberry Pi documentation.
+3. Enable PCIe Gen 3 (optional but recommended for maximum Hailo performance):
+   ```bash
+   sudo raspi-config
+   # Go to Advanced Options -> PCIe Speed -> Enable Gen 3
+   # Reboot
+   ```
+
+---
+
+## 📥 Step 2: Hailo Software Setup
+
+The Hailo SDK is required for the NPU to function.
+
+1. Install the Hailo software suite:
+   ```bash
+   sudo apt update
+   sudo apt full-upgrade
+   sudo apt install hailo-all
+   ```
+2. Verify the Hailo device is recognized:
+   ```bash
+   hailortcli fw-control identify
+   ```
+3. Add your user to the `video` group to allow hardware access:
+   ```bash
+   sudo usermod -a -G video $USER
+   # Log out and log back in, or reboot
+   ```
+
+---
+
+## 📦 Step 3: Project Setup & Dependencies
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/tektekgo/seewhozthere.git
+   cd seewhozthere
+   ```
+
+2. **Download the Hailo Model:**
+   Download the pre-compiled RetinaFace model for Hailo-8L into the `models` directory:
+   ```bash
+   mkdir -p models
+   wget -O models/retinaface_mobilenet_v1.hef https://hailo-model-zoo.s3.eu-west-2.amazonaws.com/FaceDetection/Detection/retinaface_mobilenet_v1/pretrained/2023-07-18/retinaface_mobilenet_v1.hef
+   ```
+
+3. **Run the setup script:**
+   This creates a Python virtual environment and installs all pinned dependencies (crucial for Hailo compatibility).
+   ```bash
+   ./setup.sh
+   ```
+
+---
+
+## ⚙️ Step 4: Configuration
+
+1. **Copy the example configuration:**
+   ```bash
+   cp config.ini.example config.ini
+   ```
+
+2. **Edit `config.ini`:**
+   ```bash
+   nano config.ini
+   ```
+   * **`[CAMERAS]`**: Add your camera RTSP streams.
+     * *Best Practice*: Reserve a static IP for your cameras in your router, and use a strong, complex username/password.
+     * *Workflow*: If you change camera IPs later, update `config.ini` locally and commit/push your changes to your source control.
+   * **`[SECURITY]`**: Set a strong `passphrase` for the web dashboard.
+   * **`[TELEGRAM]`**: Add your Bot Token and Chat ID (see Step 5).
+
+---
+
+## 📱 Step 5: Telegram Bot Setup (Optional but Recommended)
+
+To receive instant alerts with photos when an unknown person is detected:
+
+1. Open Telegram and search for `@BotFather`.
+2. Send `/newbot`, choose a name and username, and copy the **HTTP API Token**.
+3. Search for `@userinfobot` to get your personal **Chat ID**.
+4. Paste both into the `[TELEGRAM]` section of your `config.ini`.
+
+---
+
+## 🚀 Step 6: Start the Services
+
+SeeWhozThere® runs as two separate `systemd` services: the background detection processor and the web dashboard.
+
+1. **Install and start the services:**
+   ```bash
+   ./install_service.sh
+   ```
+2. **Verify they are running:**
+   ```bash
+   sudo systemctl status seewhozthere
+   sudo systemctl status seewhozthere-web
+   ```
+
+The web dashboard is now accessible on your local network at:
+`http://<YOUR_PI_IP>:7222`
+
+---
+
+## 🌐 Step 7: Secure Remote Access via Cloudflare Tunnel
+
+To access your dashboard securely from anywhere without opening ports on your router:
+
+1. Create a free account on [Cloudflare Zero Trust](https://one.dash.cloudflare.com/).
+2. Go to **Networks → Tunnels** and create a new tunnel.
+3. Install `cloudflared` on your Raspberry Pi using the command provided in the dashboard.
+4. Route a Public Hostname (e.g., `seewhozthere.yourdomain.com`) to `http://localhost:7222`.
+
+**Important Cache Configuration:**
+Cloudflare may aggressively cache the dashboard's JavaScript files. To ensure you always see the latest version after an update, create a **Cache Rule** in your Cloudflare dashboard:
+- **Rule name**: `Bypass cache for dashboard assets`
+- **When incoming requests match**: URI Path → contains → `/dashboard/assets/`
+- **Cache eligibility**: Bypass cache
+
+---
+
+## 🔄 Updating SeeWhozThere®
+
+When new features are pushed to the repository, updating your Pi is simple:
+
+```bash
+cd ~/projects/seewhozthere
+git pull
+sudo systemctl restart seewhozthere-web
+```
+*Note: Because the built frontend files are tracked in git, no Node.js build step is required on the Pi.*
+
+---
+
+## 📄 License
+
+This project is proprietary and confidential. Designed & Created by Sujit G. All rights reserved.
