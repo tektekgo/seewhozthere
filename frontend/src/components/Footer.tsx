@@ -1,4 +1,4 @@
-import { APP_VERSION, BUILD_DATE, BUILD_NUMBER } from "@/lib/version";
+import { GIT_HASH, BUILD_DATE } from "@/lib/version";
 import logo from "@/assets/logo.png";
 
 export function Footer() {
@@ -38,10 +38,21 @@ export function Footer() {
             </p>
           </div>
 
-          {/* Right: Version */}
+          {/* Right: Build info — git hash links directly to that commit on GitHub */}
           <div className="text-right text-xs opacity-70 font-mono">
-            <p>v{APP_VERSION} · Build {BUILD_NUMBER}</p>
-            <p>{BUILD_DATE}</p>
+            <p>
+              commit{" "}
+              <a
+                href={`https://github.com/tektekgo/seewhozthere/commit/${GIT_HASH}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:opacity-100 hover:underline"
+                title="View this commit on GitHub"
+              >
+                {GIT_HASH}
+              </a>
+            </p>
+            <p className="opacity-80">{BUILD_DATE}</p>
           </div>
 
         </div>

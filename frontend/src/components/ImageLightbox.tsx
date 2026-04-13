@@ -1,5 +1,6 @@
 /**
  * ImageLightbox — click any thumbnail to open a full-size overlay.
+ * Renders via a React Portal into document.body to avoid stacking context issues.
  *
  * Usage:
  *   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
@@ -9,6 +10,7 @@
  */
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -24,26 +26,21 @@ interface ImageLightboxProps {
   onClose: () => void;
 }
 
-export function ImageLightbox({ image, onClose }: ImageLightboxProps) {
+function LightboxContent({ image, onClose }: ImageLightboxProps) {
   // Close on Escape key
   useEffect(() => {
-    if (!image) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [image, onClose]);
+  }, [onClose]);
 
   // Prevent body scroll while open
   useEffect(() => {
-    if (image) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
-  }, [image]);
+  }, []);
 
   if (!image) return null;
 
@@ -56,16 +53,18 @@ export function ImageLightbox({ image, onClose }: ImageLightboxProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      style={{ position: "fixed", inset: 0, zIndex: 9999 }}
+      className="flex items-center justify-center bg-black/85 backdrop-blur-sm"
       onClick={onClose}
     >
-      {/* Modal panel — stop click propagation so clicking the image doesn't close */}
+      {/* Modal panel — stop propagation so clicking image/buttons doesn't close */}
       <div
-        className="relative flex flex-col items-center max-w-[90vw] max-h-[90vh]"
+        className="relative flex flex-col items-center"
+        style={{ maxWidth: "90vw", maxHeight: "90vh" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Toolbar */}
-        <div className="absolute top-2 right-2 flex gap-1 z-10">
+        <div className="absolute top-2 right-2 flex gap-1" style={{ zIndex: 10000 }}>
           <Button
             size="icon"
             variant="secondary"
@@ -90,15 +89,16 @@ export function ImageLightbox({ image, onClose }: ImageLightboxProps) {
         <img
           src={image.src}
           alt={image.alt ?? "Snapshot"}
-          className="max-w-[90vw] max-h-[80vh] rounded-lg object-contain shadow-2xl"
+          style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain" }}
+          className="rounded-lg shadow-2xl"
           onError={(e) => {
-            (e.target as HTMLImageElement).src = "/static/mock_faces/unknown_1.jpg";
+            (e.target as HTMLImageElement).alt = "Image unavailable";
           }}
         />
 
         {/* Caption */}
         {image.caption && (
-          <p className="mt-3 text-sm text-white/80 text-center px-4 max-w-md">
+          <p className="mt-3 text-sm text-white/80 text-center px-4" style={{ maxWidth: "500px" }}>
             {image.caption}
           </p>
         )}
@@ -109,5 +109,13 @@ export function ImageLightbox({ image, onClose }: ImageLightboxProps) {
         </p>
       </div>
     </div>
+  );
+}
+
+export function ImageLightbox({ image, onClose }: ImageLightboxProps) {
+  if (!image) return null;
+  return createPortal(
+    <LightboxContent image={image} onClose={onClose} />,
+    document.body
   );
 }
