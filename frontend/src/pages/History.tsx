@@ -3,8 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import {
   Search, UserCheck, UserX, Camera, Clock, Calendar,
   Plus, Tag, Trash2, RefreshCw, CheckSquare, Square,
-  CheckCheck, X, Users, Video, Filter as FilterIcon,
+  CheckCheck, X, Users, Video, Filter as FilterIcon, ZoomIn,
 } from "lucide-react";
+import { ImageLightbox, type LightboxImage } from "@/components/ImageLightbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -303,9 +304,10 @@ interface SightingCardProps {
   onToggleSelect: (id: number) => void;
   onName: (s: Sighting) => void;
   onDelete: (id: number) => void;
+  onImageClick: (img: LightboxImage) => void;
 }
 
-function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onName, onDelete }: SightingCardProps) {
+function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onName, onDelete, onImageClick }: SightingCardProps) {
   const { date, time } = formatDateTime(sighting.timestamp);
   const isKnown = !!sighting.visitor_name;
 
@@ -319,18 +321,41 @@ function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onNam
       onClick={() => onToggleSelect(sighting.id)}
     >
       <CardContent className="p-3 flex gap-3">
-        {/* Snapshot / placeholder */}
-        <div className="relative shrink-0">
+        {/* Snapshot / placeholder — click to enlarge */}
+        <div className="relative shrink-0 group">
           {sighting.snapshot_url ? (
-            <img
-              src={sighting.snapshot_url}
-              alt="Face snapshot"
-              className="h-20 w-20 rounded-md object-cover border border-border"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = "";
-                (e.target as HTMLImageElement).className = "h-20 w-20 rounded-md bg-muted border border-border";
-              }}
-            />
+            <>
+              <img
+                src={sighting.snapshot_url}
+                alt="Face snapshot"
+                className="h-20 w-20 rounded-md object-contain border border-border bg-muted cursor-zoom-in"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onImageClick({
+                    src: sighting.snapshot_url!,
+                    alt: sighting.visitor_name ?? "Unknown",
+                    caption: `${sighting.visitor_name ?? "Unknown"} · ${sighting.camera_name} · ${date} ${time}`,
+                  });
+                }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+              {/* Zoom hint overlay */}
+              <div
+                className="absolute inset-0 rounded-md bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-zoom-in"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onImageClick({
+                    src: sighting.snapshot_url!,
+                    alt: sighting.visitor_name ?? "Unknown",
+                    caption: `${sighting.visitor_name ?? "Unknown"} · ${sighting.camera_name} · ${date} ${time}`,
+                  });
+                }}
+              >
+                <ZoomIn className="h-5 w-5 text-white drop-shadow" />
+              </div>
+            </>
           ) : (
             <div className="h-20 w-20 rounded-md bg-muted border border-border flex items-center justify-center">
               <Camera className="h-6 w-6 text-muted-foreground/40" />
@@ -431,6 +456,9 @@ const History = () => {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showBulkNameDialog, setShowBulkNameDialog] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Lightbox state
+  const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
 
   // ── Read URL params on mount ──────────────────────────────────────────────
   useEffect(() => {
@@ -737,6 +765,7 @@ const History = () => {
                 onToggleSelect={toggleSelect}
                 onName={setNamingSighting}
                 onDelete={handleDelete}
+                onImageClick={setLightbox}
               />
             ))}
           </div>
@@ -770,6 +799,9 @@ const History = () => {
         onClose={() => setShowAddVisitor(false)}
         onAdded={loadData}
       />
+
+      {/* Image lightbox */}
+      <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />
     </main>
   );
 };

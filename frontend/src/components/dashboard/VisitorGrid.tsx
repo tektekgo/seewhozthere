@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { UserX, Clock, ArrowRight } from "lucide-react";
+import { UserX, Clock, ArrowRight, ZoomIn } from "lucide-react";
 import type { Visitor } from "@/lib/mock-data";
+import { ImageLightbox, type LightboxImage } from "@/components/ImageLightbox";
 
 type Filter = "all" | "known" | "unknown";
 
@@ -14,6 +15,7 @@ interface VisitorGridProps {
 
 export function VisitorGrid({ visitors }: VisitorGridProps) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
 
   const filtered = visitors.filter((v) => {
     if (filter === "known") return v.known;
@@ -70,14 +72,39 @@ export function VisitorGrid({ visitors }: VisitorGridProps) {
             <Card key={v.id} className="hover:shadow-md hover:border-primary/30 transition-all overflow-hidden">
               <CardContent className="p-0">
                 <div className="flex">
-                  {/* Face thumbnail */}
-                  <div className="shrink-0 w-20 h-20 bg-muted relative">
+                  {/* Face thumbnail — click to enlarge */}
+                  <div className="shrink-0 w-20 h-20 bg-muted relative group">
                     {v.thumbnail ? (
-                      <img
-                        src={v.thumbnail}
-                        alt={v.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <>
+                        <img
+                          src={v.thumbnail}
+                          alt={v.name}
+                          className="w-full h-full object-contain cursor-zoom-in"
+                          onClick={() =>
+                            setLightbox({
+                              src: v.thumbnail!,
+                              alt: v.name,
+                              caption: `${v.name} · ${v.firstSeen}`,
+                            })
+                          }
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                        {/* Zoom hint overlay */}
+                        <div
+                          className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-zoom-in"
+                          onClick={() =>
+                            setLightbox({
+                              src: v.thumbnail!,
+                              alt: v.name,
+                              caption: `${v.name} · ${v.firstSeen}`,
+                            })
+                          }
+                        >
+                          <ZoomIn className="h-5 w-5 text-white drop-shadow" />
+                        </div>
+                      </>
                     ) : (
                       <div className={`w-full h-full flex items-center justify-center text-xl font-bold ${v.known ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-500"}`}>
                         {v.known ? v.name.split(" ").map((n) => n[0]).join("").slice(0, 2) : "?"}
@@ -117,6 +144,8 @@ export function VisitorGrid({ visitors }: VisitorGridProps) {
           ))}
         </div>
       )}
+
+      <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }
