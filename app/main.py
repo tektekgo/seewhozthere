@@ -609,6 +609,27 @@ async def identify_sighting(sighting_id: int, visitor_id: int = Form(...)):
     }
 
 
+@app.post("/api/sightings/{sighting_id}/unidentify")
+async def unidentify_sighting(sighting_id: int):
+    """
+    Remove the visitor association from a sighting, marking it as Unknown again.
+    Useful for correcting a misidentification before re-assigning the correct person.
+    """
+    db = get_db()
+    conn = db._get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE sightings SET visitor_id = NULL WHERE id = ?",
+        (sighting_id,)
+    )
+    if cursor.rowcount == 0:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Sighting not found")
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": "Sighting marked as Unknown"}
+
+
 @app.get("/api/unknown-sightings")
 async def get_unknown_sightings(limit: int = 50):
     """Get recent unknown sightings."""

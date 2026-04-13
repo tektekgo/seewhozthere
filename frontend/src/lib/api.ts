@@ -76,6 +76,11 @@ export const api = {
     fetchFromApi(`/api/unknown-sightings?limit=${limit}`, { sightings: [] }),
   getAllSightings: (limit = 100) =>
     fetchFromApi(`/api/sightings?limit=${limit}`, { sightings: [] }),
+  unidentifySighting: async (sightingId: number) => {
+    const baseUrl = getApiUrl();
+    const res = await fetch(`${baseUrl}/api/sightings/${sightingId}/unidentify`, { method: "POST" });
+    return res.ok ? { success: true } : { success: false };
+  },
   identifySighting: async (sightingId: number, visitorId: number) => {
     const baseUrl = getApiUrl();
     const form = new FormData();

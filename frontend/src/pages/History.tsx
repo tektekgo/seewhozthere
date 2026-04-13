@@ -66,12 +66,13 @@ interface NameDialogProps {
   sightingIds: number[];           // 1 = single, >1 = bulk
   previewSighting?: Sighting;      // show thumbnail for single
   knownVisitors: KnownVisitor[];
+  isCorrection?: boolean;          // true when re-identifying an already-named sighting
   onClose: () => void;
   onNamed: (ids: number[], visitorName: string) => void;
 }
 
-function NameDialog({ sightingIds, previewSighting, knownVisitors, onClose, onNamed }: NameDialogProps) {
-  const [mode, setMode] = useState<"select" | "new">("select");
+function NameDialog({ sightingIds, previewSighting, knownVisitors, isCorrection, onClose, onNamed }: NameDialogProps) {
+  const [mode, setMode] = useState<"select" | "new" | "unknown">("select");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
   const [newPhoto, setNewPhoto] = useState<File | null>(null);
@@ -81,6 +82,23 @@ function NameDialog({ sightingIds, previewSighting, knownVisitors, onClose, onNa
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Mark as Unknown
+      if (mode === "unknown") {
+        const results = await Promise.allSettled(
+          sightingIds.map((id) => api.unidentifySighting(id))
+        );
+        const succeeded = results.filter((r) => r.status === "fulfilled").length;
+        if (succeeded > 0) {
+          toast.success(isBulk ? `${succeeded} detections marked as Unknown` : "Marked as Unknown");
+          onNamed(sightingIds, "");
+        } else {
+          toast.error("Failed to update");
+        }
+        setSaving(false);
+        onClose();
+        return;
+      }
+
       let visitorId: number | null = null;
       let visitorName = "";
 
@@ -130,11 +148,17 @@ function NameDialog({ sightingIds, previewSighting, knownVisitors, onClose, onNa
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{isBulk ? `Name ${sightingIds.length} Selected Detections` : "Name This Person"}</DialogTitle>
+          <DialogTitle>
+            {isCorrection
+              ? (isBulk ? `Correct ${sightingIds.length} Detections` : "Correct Identity")
+              : (isBulk ? `Name ${sightingIds.length} Selected Detections` : "Name This Person")}
+          </DialogTitle>
           <DialogDescription>
-            {isBulk
-              ? `All ${sightingIds.length} selected detections will be assigned to the same person.`
-              : "Assign an identity so future appearances are recognised automatically."}
+            {isCorrection
+              ? "Select the correct person, or mark as Unknown if the identification was wrong."
+              : (isBulk
+                  ? `All ${sightingIds.length} selected detections will be assigned to the same person.`
+                  : "Assign an identity so future appearances are recognised automatically.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -166,13 +190,18 @@ function NameDialog({ sightingIds, previewSighting, knownVisitors, onClose, onNa
         )}
 
         {/* Mode toggle */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant={mode === "select" ? "default" : "outline"} size="sm" className="flex-1" onClick={() => setMode("select")}>
             <UserCheck className="h-3.5 w-3.5 mr-1.5" />Existing Person
           </Button>
           <Button variant={mode === "new" ? "default" : "outline"} size="sm" className="flex-1" onClick={() => setMode("new")}>
             <Plus className="h-3.5 w-3.5 mr-1.5" />New Person
           </Button>
+          {isCorrection && (
+            <Button variant={mode === "unknown" ? "destructive" : "outline"} size="sm" className="flex-1" onClick={() => setMode("unknown")}>
+              <UserX className="h-3.5 w-3.5 mr-1.5" />Mark Unknown
+            </Button>
+          )}
         </div>
 
         {mode === "select" ? (
@@ -224,6 +253,7 @@ function NameDialog({ sightingIds, previewSighting, knownVisitors, onClose, onNa
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button
+            variant={mode === "unknown" ? "destructive" : "default"}
             onClick={handleSave}
             disabled={
               saving ||
@@ -231,7 +261,15 @@ function NameDialog({ sightingIds, previewSighting, knownVisitors, onClose, onNa
               (mode === "new" && !newName.trim())
             }
           >
-            {saving ? "Saving…" : isBulk ? `Identify ${sightingIds.length} Detections` : "Confirm"}
+            {saving
+              ? "Saving…"
+              : mode === "unknown"
+              ? "Mark as Unknown"
+              : isBulk
+              ? `Identify ${sightingIds.length} Detections`
+              : isCorrection
+              ? "Update Identity"
+              : "Confirm"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -335,6 +373,7 @@ function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onNam
                     src: sighting.snapshot_url!,
                     alt: sighting.visitor_name ?? "Unknown",
                     caption: `${sighting.visitor_name ?? "Unknown"} · ${sighting.camera_name} · ${date} ${time}`,
+                    sightingId: sighting.id,
                   });
                 }}
                 onError={(e) => {
@@ -350,6 +389,7 @@ function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onNam
                     src: sighting.snapshot_url!,
                     alt: sighting.visitor_name ?? "Unknown",
                     caption: `${sighting.visitor_name ?? "Unknown"} · ${sighting.camera_name} · ${date} ${time}`,
+                    sightingId: sighting.id,
                   });
                 }}
               >
@@ -391,11 +431,14 @@ function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onNam
           </p>
           {/* Action buttons */}
           <div className="flex gap-1.5 mt-auto pt-1" onClick={(e) => e.stopPropagation()}>
-            {!isKnown && (
-              <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={() => onName(sighting)}>
-                <Tag className="h-3 w-3 mr-1" />Name
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant={isKnown ? "ghost" : "outline"}
+              className="h-6 text-xs px-2"
+              onClick={() => onName(sighting)}
+            >
+              <Tag className="h-3 w-3 mr-1" />{isKnown ? "Rename" : "Name"}
+            </Button>
             <Button size="sm" variant="ghost" className="h-6 text-xs px-2 text-destructive hover:text-destructive" onClick={() => onDelete(sighting.id)}>
               <Trash2 className="h-3 w-3" />
             </Button>
@@ -778,6 +821,7 @@ const History = () => {
           sightingIds={[namingSighting.id]}
           previewSighting={namingSighting}
           knownVisitors={knownVisitors}
+          isCorrection={!!namingSighting.visitor_name}
           onClose={() => setNamingSighting(null)}
           onNamed={handleNamed}
         />
@@ -801,7 +845,14 @@ const History = () => {
       />
 
       {/* Image lightbox */}
-      <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />
+      <ImageLightbox
+        image={lightbox}
+        onClose={() => setLightbox(null)}
+        onChangeName={(sightingId) => {
+          const s = sightings.find((x) => x.id === sightingId);
+          if (s) setNamingSighting(s);
+        }}
+      />
     </main>
   );
 };
