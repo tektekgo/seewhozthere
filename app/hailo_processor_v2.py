@@ -1,5 +1,5 @@
 """
-SeeWhozThere Hailo AI Processor Module v2
+SeeWhozThere® Hailo AI Processor Module v2
 
 Enhanced version with face recognition capabilities.
 
@@ -411,8 +411,8 @@ class HailoProcessorV2:
                         # Save snapshot with bounding box
                         snapshot_path = self._save_snapshot(frame, camera_name, timestamp, bbox)
                         
-                        # Record sighting
-                        self.db.add_sighting(
+                        # Record sighting — capture the returned sighting_id
+                        sighting_id = self.db.add_sighting(
                             visitor_id=visitor_id,
                             camera_name=camera_name,
                             timestamp=timestamp,
@@ -436,10 +436,11 @@ class HailoProcessorV2:
                         else:
                             self.stats['unknown_faces'] += 1
                             print(f"[HailoProcessorV2] Unknown face detected on {camera_name}")
-                            # Send Telegram alert for unknown face
+                            # Send Telegram alert for unknown face — pass sighting_id to enable
+                            # inline identification buttons in the Telegram message.
                             threading.Thread(
                                 target=send_unknown_face_alert,
-                                args=(camera_name, snapshot_path),
+                                args=(camera_name, snapshot_path, sighting_id),
                                 daemon=True
                             ).start()
                 
