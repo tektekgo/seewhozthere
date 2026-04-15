@@ -1,66 +1,96 @@
 # SeeWhozThere®
 
-SeeWhozThere® is an advanced, privacy-first home security and face recognition system designed specifically for the Raspberry Pi 5 with the Hailo-8L AI Accelerator. It processes local RTSP camera streams in real-time, identifies known and unknown visitors, and provides a beautiful web dashboard and Telegram notifications.
+SeeWhozThere® is an advanced, privacy-first home security and face recognition system designed specifically for the Raspberry Pi 5 with the Hailo-8L AI Accelerator. It processes local RTSP camera streams in real-time, identifies known and unknown visitors, and provides a beautiful web dashboard and interactive Telegram notifications — all without sending a single frame to the cloud.
 
 <p align="center">
   <img src="frontend/public/logo.png" width="120" alt="SeeWhozThere Logo">
 </p>
 
+---
+
 ## 🌟 Features
 
-- **Real-time Face Detection**: Powered by the Hailo-8L NPU for high-performance edge inference (25-30 FPS).
-- **Face Recognition**: Automatically identifies known visitors and flags unknown faces.
-- **Interactive Dashboard**: View live detections, filter history, correct misidentifications, and manage known people.
-- **Telegram Notifications**: Instant alerts with snapshots for unknown visitors, and daily summary reports.
-- **Privacy First**: 100% local processing. No cloud subscription, no video feeds sent to third-party servers.
-- **Cloudflare Tunnel Support**: Securely access your dashboard from anywhere without opening firewall ports.
+### AI & Detection
+- **Real-time Face Detection** powered by the Hailo-8L NPU using the RetinaFace MobileNet model (25–30 FPS per camera stream).
+- **Face Recognition** that automatically identifies known visitors and flags unknown faces with a configurable confidence threshold.
+- **Configurable Detection Tuning** — set minimum face size and confidence threshold per environment (indoor vs. outdoor) to eliminate false positives from foliage, shadows, or passing vehicles.
+- **Snapshot Cooldown** — configurable minimum seconds between saved snapshots per camera to prevent photo floods.
+- **Camera Watchdog** — automatically restarts any camera thread that dies due to a network drop, without requiring a service restart.
+- **Face Encoding Learning** — when you identify an unknown face (from the dashboard or Telegram), SeeWhozThere® extracts and saves the face encoding from the snapshot so the system will recognise that person automatically in future sightings.
+
+### Web Dashboard
+- **Live Overview** — stat cards showing today's total sightings, known vs. unknown counts, and active cameras, all updated in real time.
+- **Interactive Analytics** — clickable stat cards and charts that drill down into hourly activity, known/unknown breakdown, weekly trends, per-camera activity, and a heatmap of activity by hour and day.
+- **History Page** — full sighting log with face thumbnails, timestamps, camera names, and confidence scores. Supports multi-select, bulk naming, and bulk delete.
+- **Click-to-Enlarge Lightbox** — click any face thumbnail in the History page to view a full-size snapshot with identification options.
+- **Re-identification & Correction** — every detection card has a **Rename** button to correct a misidentification, a **Mark as Unknown** button to unassign a visitor, and a **Change Name** option directly from the lightbox.
+- **People Management Page** — view all known people, their thumbnails, sighting counts, and last-seen times. Add new people, edit names, and delete records.
+- **Settings Page** — manage camera RTSP streams, detection parameters, Telegram credentials, and general settings directly from the browser. No SSH required for routine configuration changes.
+- **Passphrase Login** — protect the dashboard with a passphrase. Configurable session duration. Can be disabled for fully local-only deployments.
+- **Hailo Status Indicator** — real-time display of whether the Hailo NPU is detected and active.
+
+### Telegram Notifications
+- **Instant Unknown-Visitor Alerts** with a face snapshot photo sent the moment an unknown person is detected.
+- **Inline Identification Buttons** — tap directly in Telegram to identify the person without opening the dashboard:
+  - **"It's [Name]"** — up to 6 buttons for your most-recently-seen known people.
+  - **"🚫 Keep Unknown"** — dismiss the buttons and leave the sighting as-is.
+  - **"➕ Add as New Person"** — the bot prompts you to reply with a name, then creates the visitor record, saves the face encoding, and confirms.
+- **Known-Visitor Alerts** — optional instant notification when a recognised person is seen.
+- **Daily Summary** — a digest of the day's sightings sent at a configured time (e.g., 20:00).
+- **Long-polling** — no webhook URL or port-forwarding required. The bot polls Telegram's servers from inside your network.
+
+### Privacy & Security
+- **100% Local Processing** — no video, images, or face data ever leave your home network.
+- **No Cloud Subscription** — fully self-hosted on your Raspberry Pi.
+- **Cloudflare Tunnel Support** — securely access your dashboard from anywhere without opening firewall ports.
 
 ---
 
 ## 📋 Hardware Requirements
 
-To run SeeWhozThere®, you will need:
-
-1. **Raspberry Pi 5** (4GB or 8GB RAM recommended)
-2. **Raspberry Pi AI HAT+** (with Hailo-8L NPU)
-3. **Active Cooling** (Active Cooler or similar recommended due to AI workload)
-4. **RTSP-enabled IP Cameras** (e.g., Reolink, Amcrest, Tapo, UniFi)
-5. **MicroSD Card or NVMe SSD** (32GB+ recommended)
+| Component | Requirement |
+|---|---|
+| Single-board computer | Raspberry Pi 5 (4 GB or 8 GB RAM recommended) |
+| AI accelerator | Raspberry Pi AI HAT+ (Hailo-8L, 13 TOPS) |
+| Cooling | Active Cooler for Raspberry Pi 5 (recommended) |
+| Storage | MicroSD Card or NVMe SSD, 32 GB+ |
+| Cameras | One or more RTSP-enabled IP cameras (e.g., Reolink, Amcrest, Tapo, UniFi) |
 
 ---
 
 ## 🛠️ Step 1: Raspberry Pi OS & Hardware Setup
 
-1. Install **Raspberry Pi OS (64-bit) Bookworm** or later.
-2. Assemble the AI HAT+ according to the official Raspberry Pi documentation.
-3. Enable PCIe Gen 3 (optional but recommended for maximum Hailo performance):
+1. Install **Raspberry Pi OS (64-bit) Bookworm** or later using Raspberry Pi Imager.
+2. Assemble the AI HAT+ according to the [official Raspberry Pi documentation](https://www.raspberrypi.com/documentation/accessories/ai-hat-plus.html).
+3. Enable PCIe Gen 3 for maximum Hailo performance (optional but recommended):
    ```bash
    sudo raspi-config
-   # Go to Advanced Options -> PCIe Speed -> Enable Gen 3
-   # Reboot
+   # Advanced Options → PCIe Speed → Enable Gen 3 → Reboot
    ```
 
 ---
 
 ## 📥 Step 2: Hailo Software Setup
 
-The Hailo SDK is required for the NPU to function.
+The Hailo SDK (`hailo-all`) is required for the NPU to function and is **not** installable via pip.
 
-1. Install the Hailo software suite:
+1. Install the Hailo software suite from the Raspberry Pi apt repository:
    ```bash
    sudo apt update
    sudo apt full-upgrade
    sudo apt install hailo-all
    ```
-2. Verify the Hailo device is recognized:
+2. Verify the device is recognized:
    ```bash
    hailortcli fw-control identify
    ```
-3. Add your user to the `video` group to allow hardware access:
+3. Add your user to the `video` group for hardware access:
    ```bash
    sudo usermod -a -G video $USER
-   # Log out and log back in, or reboot
+   # Log out and back in, or reboot
    ```
+
+> See [`docs/HAILO_SETUP.md`](docs/HAILO_SETUP.md) for detailed troubleshooting and [`docs/DEPENDENCY_NOTES.md`](docs/DEPENDENCY_NOTES.md) for critical notes on pinned package versions.
 
 ---
 
@@ -68,19 +98,20 @@ The Hailo SDK is required for the NPU to function.
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/tektekgo/seewhozthere.git
-   cd seewhozthere
+   git clone https://github.com/tektekgo/seewhozthere.git ~/projects/seewhozthere
+   cd ~/projects/seewhozthere
    ```
 
 2. **Download the Hailo Model:**
-   Download the pre-compiled RetinaFace model for Hailo-8L into the `models` directory:
+   The pre-compiled RetinaFace MobileNet model must be placed in the `models/` directory:
    ```bash
    mkdir -p models
-   wget -O models/retinaface_mobilenet_v1.hef https://hailo-model-zoo.s3.eu-west-2.amazonaws.com/FaceDetection/Detection/retinaface_mobilenet_v1/pretrained/2023-07-18/retinaface_mobilenet_v1.hef
+   wget -O models/retinaface_mobilenet_v1.hef \
+     https://hailo-model-zoo.s3.eu-west-2.amazonaws.com/FaceDetection/Detection/retinaface_mobilenet_v1/pretrained/2023-07-18/retinaface_mobilenet_v1.hef
    ```
 
 3. **Run the setup script:**
-   This creates a Python virtual environment and installs all pinned dependencies (crucial for Hailo compatibility).
+   This creates a Python virtual environment and installs all pinned dependencies. The version pins are critical for Hailo SDK compatibility — do not upgrade packages without consulting [`docs/DEPENDENCY_NOTES.md`](docs/DEPENDENCY_NOTES.md).
    ```bash
    ./setup.sh
    ```
@@ -98,58 +129,129 @@ The Hailo SDK is required for the NPU to function.
    ```bash
    nano config.ini
    ```
-   * **`[CAMERAS]`**: Add your camera RTSP streams.
-     * *Best Practice*: Reserve a static IP for your cameras in your router, and use a strong, complex username/password.
-     * *Workflow*: If you change camera IPs later, update `config.ini` locally and commit/push your changes to your source control.
-   * **`[SECURITY]`**: Set a strong `passphrase` for the web dashboard.
-   * **`[TELEGRAM]`**: Add your Bot Token and Chat ID (see Step 5).
+
+The full set of configuration sections is described below.
+
+### `[GENERAL]`
+
+| Key | Default | Description |
+|---|---|---|
+| `timezone` | `UTC` | Your local timezone (e.g., `America/New_York`, `Asia/Kolkata`). Do **not** use quotes. |
+| `port` | `7222` | Port for the web dashboard. |
+| `database_path` | `data/seewhozthere.db` | Path to the SQLite database file. |
+
+### `[CAMERAS]`
+
+Add one line per camera in the format `name = rtsp://user:pass@ip:port/stream`. Do **not** use quotes around RTSP URLs.
+
+```ini
+[CAMERAS]
+front_door = rtsp://admin:MyStr0ngPass@192.168.1.100:554/stream1
+driveway   = rtsp://admin:MyStr0ngPass@192.168.1.101:554/stream1
+```
+
+**Best practice:** Reserve a static IP for each camera in your router's DHCP settings and use a strong, unique password. If you change a camera's IP later, update `config.ini` and push the change to your source control repository.
+
+### `[SECURITY]`
+
+| Key | Default | Description |
+|---|---|---|
+| `passphrase` | `changeme` | Passphrase to access the web dashboard. Change this before exposing the dashboard externally. Leave blank to disable login (not recommended). |
+| `session_hours` | `24` | How long a login session lasts before requiring re-authentication. |
+
+### `[TELEGRAM]`
+
+| Key | Description |
+|---|---|
+| `bot_token` | Your Telegram bot's HTTP API token from `@BotFather`. |
+| `chat_id` | Your personal Telegram Chat ID from `@userinfobot`. |
+
+### `[SCHEDULER]`
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Set to `true` to enable the daily summary notification. |
+| `send_time` | `20:00` | Time to send the daily summary in 24-hour `HH:MM` format. |
+| `service` | `telegram` | Notification service to use (`telegram`). |
+
+### `[DETECTION]`
+
+| Key | Default | Description |
+|---|---|---|
+| `snapshot_cooldown_seconds` | `15` | Minimum seconds between saved snapshots per camera. Lower = more photos per visit; higher = fewer. Recommended: 15–30 s. |
+| `confidence_threshold` | `0.6` | Minimum detection confidence (0.0–1.0). Recommended: `0.6` indoors, `0.80`–`0.85` outdoors. |
+| `min_face_width` | `50` | Minimum face width in pixels. Rejects small distant detections. Recommended: `50` indoors, `80`+ outdoors. |
+| `min_face_height` | `50` | Minimum face height in pixels. Same guidance as width. |
 
 ---
 
 ## 📱 Step 5: Telegram Bot Setup (Optional but Recommended)
 
-To receive instant alerts with photos when an unknown person is detected:
-
 1. Open Telegram and search for `@BotFather`.
 2. Send `/newbot`, choose a name and username, and copy the **HTTP API Token**.
 3. Search for `@userinfobot` to get your personal **Chat ID**.
-4. Paste both into the `[TELEGRAM]` section of your `config.ini`.
+4. Paste both values into the `[TELEGRAM]` section of `config.ini`.
+
+Once configured, every unknown-visitor alert will include inline buttons:
+
+```
+🚨 Unknown visitor detected
+Camera: Front Door  |  Time: 14:32:07
+— SeeWhozThere®
+
+[ It's Sujit    ]
+[ It's Sandhya  ]
+[ 🚫 Keep Unknown  |  ➕ Add as New Person ]
+```
+
+Tapping **"It's [Name]"** updates the database, extracts a face encoding from the snapshot so the system recognises that person automatically next time, and edits the message to show `✅ Identified: [Name]`.
+
+Tapping **"Add as New Person"** removes the buttons and prompts you to reply with a name. The bot creates the visitor record, saves the face encoding, and confirms with a `✅` message.
+
+> **Group chat note:** If your bot is in a Telegram group rather than a DM, go to `@BotFather → Bot Settings → Group Privacy → Turn Off` so the bot can read your name-reply message.
 
 ---
 
 ## 🚀 Step 6: Start the Services
 
-SeeWhozThere® runs as two separate `systemd` services: the background detection processor and the web dashboard.
+SeeWhozThere® runs as two separate `systemd` services.
 
-1. **Install and start the services:**
+| Service | Description |
+|---|---|
+| `seewhozthere` | Background face detection and recognition processor |
+| `seewhozthere-web` | FastAPI web dashboard (port 7222) + Telegram callback polling loop |
+
+1. **Install and start both services:**
    ```bash
    ./install_service.sh
    ```
+
 2. **Verify they are running:**
    ```bash
    sudo systemctl status seewhozthere
    sudo systemctl status seewhozthere-web
    ```
 
-The web dashboard is now accessible on your local network at:
+The web dashboard is accessible on your local network at:
 `http://<YOUR_PI_IP>:7222`
 
 ---
 
 ## 🌐 Step 7: Secure Remote Access via Cloudflare Tunnel
 
-To access your dashboard securely from anywhere without opening ports on your router:
+To access your dashboard securely from anywhere without opening firewall ports:
 
 1. Create a free account on [Cloudflare Zero Trust](https://one.dash.cloudflare.com/).
 2. Go to **Networks → Tunnels** and create a new tunnel.
-3. Install `cloudflared` on your Raspberry Pi using the command provided in the dashboard.
+3. Install `cloudflared` on your Raspberry Pi using the command provided in the Cloudflare dashboard.
 4. Route a Public Hostname (e.g., `seewhozthere.yourdomain.com`) to `http://localhost:7222`.
 
 **Important Cache Configuration:**
 Cloudflare may aggressively cache the dashboard's JavaScript files. To ensure you always see the latest version after an update, create a **Cache Rule** in your Cloudflare dashboard:
-- **Rule name**: `Bypass cache for dashboard assets`
-- **When incoming requests match**: URI Path → contains → `/dashboard/assets/`
-- **Cache eligibility**: Bypass cache
+
+- **Rule name:** `Bypass cache for dashboard assets`
+- **When incoming requests match:** URI Path → contains → `/dashboard/assets/`
+- **Cache eligibility:** Bypass cache
 
 ---
 
@@ -160,9 +262,35 @@ When new features are pushed to the repository, updating your Pi is simple:
 ```bash
 cd ~/projects/seewhozthere
 git pull
+sudo systemctl restart seewhozthere
 sudo systemctl restart seewhozthere-web
 ```
+
 *Note: Because the built frontend files are tracked in git, no Node.js build step is required on the Pi.*
+
+---
+
+## 🗂️ Project Structure
+
+```
+seewhozthere/
+├── app/
+│   ├── main.py                  # FastAPI application, all REST API endpoints
+│   ├── hailo_processor_v2.py    # Real-time detection & recognition processor
+│   ├── hailo_face_detector_v4.py# Hailo NPU pipeline wrapper
+│   ├── face_recognition_engine.py # Face encoding and matching
+│   ├── telegram_notifier.py     # Telegram alerts, inline buttons, polling loop
+│   ├── database.py              # SQLite database layer
+│   ├── analytics.py             # Analytics query helpers
+│   └── config.py                # config.ini reader
+├── frontend/                    # Pre-built React + TypeScript dashboard
+├── models/                      # Hailo .hef model files (downloaded separately)
+├── data/                        # Runtime data: database, snapshots, thumbnails
+├── docs/                        # Supplementary documentation
+├── config.ini.example           # Configuration template
+├── setup.sh                     # Virtual environment & dependency installer
+└── install_service.sh           # systemd service installer
+```
 
 ---
 
