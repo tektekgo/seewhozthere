@@ -163,13 +163,28 @@ This script will:
 4.  **Test Detection**:
     Walk in front of your camera. Your face should appear on the dashboard's history page within a few seconds.
 
-## 8. Troubleshooting
+## 8. Automated Storage Cleanup (Cron Job)
+
+SeeWhozThere® saves a snapshot every time a face is detected. Over time, this can fill up your Raspberry Pi's SD card. An automated cleanup script is included to safely delete old snapshots while preserving your AI's learned face encodings.
+
+1. Open your terminal on the Raspberry Pi.
+2. Edit your cron jobs:
+   ```bash
+   crontab -e
+   ```
+3. Add the following line at the bottom of the file. This will run the cleanup script every night at 2:00 AM and delete snapshots older than 7 days:
+   ```bash
+   0 2 * * * /usr/bin/python3 /home/ubuntu/projects/seewhozthere/cleanup_snapshots.py --days 7 >> /home/ubuntu/projects/seewhozthere/cleanup.log 2>&1
+   ```
+4. Save and exit the editor.
+
+## 9. Troubleshooting
 
 -   **Web server not starting**: Check the logs with `sudo journalctl -u seewhozthere-web -n 50 --no-pager`.
 -   **Detection service not starting**: Check the logs with `sudo journalctl -u seewhozthere -n 50 --no-pager`.
 -   **No faces detected**: Verify the camera RTSP URL is correct and accessible.
 
-## 9. Frontend Development (Optional)
+## 10. Frontend Development (Optional)
 
 If you want to modify the web dashboard, you will need to set up the frontend development environment.
 

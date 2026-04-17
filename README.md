@@ -255,6 +255,25 @@ Cloudflare may aggressively cache the dashboard's JavaScript files. To ensure yo
 
 ---
 
+## 🧹 Automated Storage Cleanup
+
+SeeWhozThere® can generate hundreds of snapshots per day. To prevent your Raspberry Pi's storage from filling up, an automated cleanup script is included.
+
+The script (`cleanup_snapshots.py`) safely removes snapshot images older than a specified number of days and clears their corresponding database records, without affecting known visitor profiles or face encodings.
+
+**Setup an automated daily cleanup (Cron Job):**
+1. Open your terminal on the Raspberry Pi and edit your cron jobs:
+   ```bash
+   crontab -e
+   ```
+2. Add the following line at the bottom to run the cleanup script every night at 2:00 AM, keeping the last 7 days of history:
+   ```bash
+   0 2 * * * /usr/bin/python3 /home/ubuntu/projects/seewhozthere/cleanup_snapshots.py --days 7 >> /home/ubuntu/projects/seewhozthere/cleanup.log 2>&1
+   ```
+3. Save and exit.
+
+---
+
 ## 🔄 Updating SeeWhozThere®
 
 When new features are pushed to the repository, updating your Pi is simple:
