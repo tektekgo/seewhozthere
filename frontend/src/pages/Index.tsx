@@ -8,6 +8,7 @@ import { CameraActivityChart } from "@/components/dashboard/CameraActivityChart"
 import { TopVisitors } from "@/components/dashboard/TopVisitors";
 import { PeakHoursHeatmap } from "@/components/dashboard/PeakHoursHeatmap";
 import { VisitorGrid } from "@/components/dashboard/VisitorGrid";
+import { StorageHealthCard } from "@/components/dashboard/StorageHealthCard";
 import { api } from "@/lib/api";
 import {
   mockHourlyData,
@@ -144,10 +145,13 @@ const Index = () => {
   }));
 
   return (
-    <main className="container py-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Real-time visitor monitoring</p>
+    <main className="container py-8 space-y-6">
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-1">SeeWhozThere®</p>
+          <h1 className="text-3xl font-extrabold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Real-time visitor monitoring &amp; AI detection</p>
+        </div>
       </div>
 
       <StatsCards
@@ -188,6 +192,9 @@ const Index = () => {
         <CameraActivityChart data={cameras} />
         <PeakHoursHeatmap data={heatmap} />
       </div>
+
+      {/* Storage Health */}
+      <StorageHealthCard />
 
       {/* Today's Visitors — real sighting cards */}
       <VisitorGrid visitors={todayVisitors} />

@@ -91,7 +91,7 @@ function AddVisitorDialog({ open, onClose }: { open: boolean; onClose: () => voi
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving || !name.trim()}>
-            {saving ? "Adding…" : "Add Visitor"}
+            {saving ? "Adding\u2026" : "Add Visitor"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -99,19 +99,19 @@ function AddVisitorDialog({ open, onClose }: { open: boolean; onClose: () => voi
   );
 }
 
-// ─── Status dot ───────────────────────────────────────────────────────────────
-
+// Status dot with optional pulse animation for active state
 function StatusDot({ on }: { on: boolean }) {
   return (
-    <span
-      className={`inline-block h-2 w-2 rounded-full shrink-0 ${
-        on ? "bg-green-500" : "bg-red-500"
-      }`}
-    />
+    <span className="relative flex h-2 w-2 shrink-0">
+      {on && (
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
+      )}
+      <span
+        className={`relative inline-flex h-2 w-2 rounded-full ${on ? "bg-green-500" : "bg-red-500"}`}
+      />
+    </span>
   );
 }
-
-// ─── Navbar ───────────────────────────────────────────────────────────────────
 
 export function Navbar({ onLogout }: { onLogout?: () => void }) {
   const { theme, toggle } = useTheme();
@@ -128,41 +128,49 @@ export function Navbar({ onLogout }: { onLogout?: () => void }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Three distinct status signals
   const cameraOn = (status?.active_cameras ?? 0) > 0;
   const detectionOn = status?.running === true;
   const aiOn = status?.hailo_available === true;
 
   const cameraLabel = cameraOn
     ? `${status!.active_cameras} camera${status!.active_cameras !== 1 ? "s" : ""} configured in config.ini`
-    : "No cameras configured — add one in Settings → Cameras";
+    : "No cameras configured \u2014 add one in Settings \u2192 Cameras";
   const detectionLabel = detectionOn
     ? "Face detection app is running (seewhozthere service)"
-    : "Face detection app is stopped — go to Settings → App Control to start it";
+    : "Face detection app is stopped \u2014 go to Settings \u2192 App Control to start it";
   const aiLabel = aiOn
-    ? "Hailo AI HAT+ detected — hardware-accelerated face detection active"
-    : "Hailo AI chip not detected — using software (OpenCV) detection";
+    ? "Hailo AI HAT+ detected \u2014 hardware-accelerated face detection active"
+    : "Hailo AI chip not detected \u2014 using software (OpenCV) detection";
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
-        <div className="container flex h-14 items-center justify-between">
+      <header className="sticky top-0 z-50 border-b bg-card/95 backdrop-blur-md shadow-sm">
+        <div className="container flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 font-bold text-lg">
-            <img src={logo} alt="SeeWhozThere™ logo" className="h-8 w-8 object-contain" />
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20 group-hover:bg-primary/15 transition-colors">
+              <img src={logo} alt="SeeWhozThere\u00ae logo" className="h-6 w-6 object-contain" />
+            </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-base font-bold">SeeWhozThere™</span>
-              <span className="text-[10px] font-normal text-muted-foreground hidden sm:block">Smart Home Security</span>
+              <span className="text-[15px] font-extrabold tracking-tight">SeeWhozThere\u00ae</span>
+              <span className="text-[10px] font-medium text-muted-foreground hidden sm:block tracking-wide uppercase">
+                Smart Home Security
+              </span>
             </div>
           </Link>
 
-          <nav className="flex items-center gap-1">
+          <nav className="flex items-center gap-0.5">
             {/* Nav links */}
             {navItems.map((item) => (
               <Link key={item.path} to={item.path}>
                 <Button
                   variant={location.pathname === item.path ? "secondary" : "ghost"}
                   size="sm"
+                  className={
+                    location.pathname === item.path
+                      ? "font-semibold"
+                      : "font-medium text-muted-foreground hover:text-foreground"
+                  }
                 >
                   {item.label}
                 </Button>
@@ -173,24 +181,23 @@ export function Navbar({ onLogout }: { onLogout?: () => void }) {
             <Button
               variant="outline"
               size="sm"
-              className="ml-2 hidden sm:flex items-center gap-1.5"
+              className="ml-2 hidden sm:flex items-center gap-1.5 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50"
               onClick={() => setShowAddVisitor(true)}
             >
               <UserPlus className="h-3.5 w-3.5" />
-              <span className="text-xs">Add Person</span>
+              <span className="text-xs font-medium">Add Person</span>
             </Button>
 
-            {/* ── Status indicators ── */}
+            {/* Status indicators */}
             <TooltipProvider delayDuration={200}>
-              <div className="flex items-center gap-2 ml-2 px-2.5 py-1 rounded-md border bg-background/50">
-
+              <div className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg border bg-muted/40">
                 {/* Camera */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1 cursor-default">
+                    <div className="flex items-center gap-1.5 cursor-default">
                       <StatusDot on={cameraOn} />
                       <Camera className={`h-3.5 w-3.5 ${cameraOn ? "text-green-500" : "text-muted-foreground"}`} />
-                      <span className={`text-[11px] font-medium hidden md:inline ${cameraOn ? "text-green-500" : "text-muted-foreground"}`}>
+                      <span className={`text-[11px] font-semibold hidden md:inline ${cameraOn ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
                         Cam
                       </span>
                     </div>
@@ -201,16 +208,16 @@ export function Navbar({ onLogout }: { onLogout?: () => void }) {
                   </TooltipContent>
                 </Tooltip>
 
-                <span className="text-border">|</span>
+                <span className="w-px h-3.5 bg-border" />
 
                 {/* Detection */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1 cursor-default">
+                    <div className="flex items-center gap-1.5 cursor-default">
                       <StatusDot on={detectionOn} />
                       <Activity className={`h-3.5 w-3.5 ${detectionOn ? "text-green-500" : "text-red-500"}`} />
-                      <span className={`text-[11px] font-medium hidden md:inline ${detectionOn ? "text-green-500" : "text-red-500"}`}>
-                        {detectionOn ? "Running" : "Stopped"}
+                      <span className={`text-[11px] font-semibold hidden md:inline ${detectionOn ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+                        {detectionOn ? "Live" : "Off"}
                       </span>
                     </div>
                   </TooltipTrigger>
@@ -220,16 +227,16 @@ export function Navbar({ onLogout }: { onLogout?: () => void }) {
                   </TooltipContent>
                 </Tooltip>
 
-                <span className="text-border">|</span>
+                <span className="w-px h-3.5 bg-border" />
 
                 {/* AI Engine */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1 cursor-default">
+                    <div className="flex items-center gap-1.5 cursor-default">
                       <StatusDot on={aiOn} />
                       <Cpu className={`h-3.5 w-3.5 ${aiOn ? "text-purple-500" : "text-muted-foreground"}`} />
                       {aiOn && (
-                        <Badge variant="outline" className="h-4 px-1 text-[9px] font-bold text-purple-500 border-purple-500/50">
+                        <Badge variant="outline" className="h-4 px-1 text-[9px] font-bold text-purple-500 border-purple-500/50 bg-purple-500/5">
                           HAT+
                         </Badge>
                       )}
@@ -240,7 +247,6 @@ export function Navbar({ onLogout }: { onLogout?: () => void }) {
                     <p>{aiLabel}</p>
                   </TooltipContent>
                 </Tooltip>
-
               </div>
             </TooltipProvider>
 
@@ -249,7 +255,7 @@ export function Navbar({ onLogout }: { onLogout?: () => void }) {
               variant="ghost"
               size="icon"
               onClick={toggle}
-              className="ml-1"
+              className="ml-1 text-muted-foreground hover:text-foreground"
               title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             >

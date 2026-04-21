@@ -49,7 +49,48 @@ from app.config import (
     SCHEDULER_ENABLED,
     SCHEDULER_SEND_TIME,
     SCHEDULER_SERVICE,
+    TELEGRAM_ALERT_COOLDOWN_MINUTES,
+    TELEGRAM_KNOWN_VISITOR_COOLDOWN_MINUTES,
 )
+
+# Maximum number of "It's <Name>" buttons to show per alert.
+
+# ─── Alert cooldown tracker ───────────────────────────────────────────────────
+# Prevents alert flooding: tracks the last time a Telegram alert was sent
+# per camera (for unknown faces) and per visitor name (for known faces).
+# Key: camera_name or visitor_name  →  Value: unix timestamp of last alert
+_last_unknown_alert: dict = {}   # camera_name -> float (epoch seconds)
+_last_known_alert: dict = {}     # visitor_name -> float (epoch seconds)
+_alert_lock = threading.Lock()
+
+
+def _should_send_unknown_alert(camera_name: str) -> bool:
+    """Return True if enough time has passed since the last unknown-face alert
+    for this camera. Thread-safe."""
+    cooldown_secs = TELEGRAM_ALERT_COOLDOWN_MINUTES * 60
+    if cooldown_secs <= 0:
+        return True
+    with _alert_lock:
+        last = _last_unknown_alert.get(camera_name, 0)
+        if time.time() - last >= cooldown_secs:
+            _last_unknown_alert[camera_name] = time.time()
+            return True
+        return False
+
+
+def _should_send_known_alert(visitor_name: str) -> bool:
+    """Return True if enough time has passed since the last known-visitor alert
+    for this visitor. Thread-safe."""
+    cooldown_secs = TELEGRAM_KNOWN_VISITOR_COOLDOWN_MINUTES * 60
+    if cooldown_secs <= 0:
+        return True
+    with _alert_lock:
+        last = _last_known_alert.get(visitor_name, 0)
+        if time.time() - last >= cooldown_secs:
+            _last_known_alert[visitor_name] = time.time()
+            return True
+        return False
+
 
 # Maximum number of "It's <Name>" buttons to show per alert.
 # Buttons are ordered by most-recently-seen so the most frequent visitors
@@ -280,33 +321,32 @@ def send_unknown_face_alert(
     """
     if not _is_configured():
         return
-
+    # Cooldown check — suppress if we already alerted for this camera recently
+    if not _should_send_unknown_alert(camera_name):
+        remaining = int(TELEGRAM_ALERT_COOLDOWN_MINUTES * 60 - (time.time() - _last_unknown_alert.get(camera_name, 0)))
+        print(f"[Telegram] Unknown-face alert suppressed for {camera_name} (cooldown: {remaining}s remaining)")
+        return
     tz = pytz.timezone(TIMEZONE)
-    now = datetime.now(tz).strftime("%H:%M:%S")
-
+    now = datetime.now(tz).strftime("%I:%M:%S %p %Z")
     caption = (
         f"<b>\U0001f6a8 Unknown visitor detected</b>\n"
         f"Camera: {camera_name}\n"
         f"Time: {now}\n"
         f"\u2014 SeeWhozThere\u00ae"
     )
-
     reply_markup = None
     if sighting_id is not None:
         try:
             reply_markup = _build_identify_keyboard(sighting_id)
         except Exception as e:
             print(f"[Telegram] Could not build keyboard: {e}")
-
     if snapshot_path and os.path.exists(snapshot_path):
         msg = send_photo(snapshot_path, caption, reply_markup=reply_markup)
     else:
         msg = send_message(caption, reply_markup=reply_markup)
-
     if msg and sighting_id is not None:
         # Register the message so the callback handler can edit it later
         _callback_handler.register_message(sighting_id, msg)
-
     print(f"[Telegram] Sent unknown-face alert for {camera_name}"
           + (f" (sighting #{sighting_id})" if sighting_id else ""))
 
@@ -326,22 +366,23 @@ def send_known_face_alert(
     """
     if not _is_configured():
         return
-
+    # Cooldown check — suppress repeated alerts for the same known visitor
+    if not _should_send_known_alert(visitor_name):
+        remaining = int(TELEGRAM_KNOWN_VISITOR_COOLDOWN_MINUTES * 60 - (time.time() - _last_known_alert.get(visitor_name, 0)))
+        print(f"[Telegram] Known-face alert suppressed for {visitor_name} (cooldown: {remaining}s remaining)")
+        return
     tz = pytz.timezone(TIMEZONE)
-    now = datetime.now(tz).strftime("%H:%M:%S")
-
+    now = datetime.now(tz).strftime("%I:%M:%S %p %Z")
     caption = (
         f"<b>{visitor_name} spotted</b>\n"
         f"Camera: {camera_name}\n"
         f"Time: {now}\n"
         f"\u2014 SeeWhozThere\u00ae"
     )
-
     if snapshot_path and os.path.exists(snapshot_path):
         send_photo(snapshot_path, caption)
     else:
         send_message(caption)
-
     print(f"[Telegram] Sent known-face alert for {visitor_name} on {camera_name}")
 
 

@@ -58,6 +58,12 @@ DETECTION_CONFIDENCE_THRESHOLD = _config.getfloat("DETECTION", "confidence_thres
 DETECTION_MIN_FACE_WIDTH = _config.getint("DETECTION", "min_face_width", fallback=50)
 DETECTION_MIN_FACE_HEIGHT = _config.getint("DETECTION", "min_face_height", fallback=50)
 
+# Telegram alert cooldown settings
+# Minimum minutes between Telegram alerts for the same camera (prevents flooding)
+TELEGRAM_ALERT_COOLDOWN_MINUTES = _config.getfloat("TELEGRAM_ALERTS", "alert_cooldown_minutes", fallback=5.0)
+# Minimum minutes between Telegram alerts for the same known visitor
+TELEGRAM_KNOWN_VISITOR_COOLDOWN_MINUTES = _config.getfloat("TELEGRAM_ALERTS", "known_visitor_alert_cooldown_minutes", fallback=10.0)
+
 # Camera settings — loaded at import time for backwards compatibility.
 # NOTE: Use get_cameras() in long-running services so a restart picks up changes.
 CAMERAS = get_cameras()

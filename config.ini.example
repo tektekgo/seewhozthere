@@ -1,7 +1,7 @@
 [GENERAL]
 # Your timezone (e.g., America/New_York, Europe/London, Asia/Kolkata, UTC)
 # NOTE: Do NOT use quotes around values in .ini files
-timezone = UTC
+timezone = America/New_York
 
 # Port for the web server
 port = 7222
@@ -61,6 +61,18 @@ confidence_threshold = 0.6
 # Recommended: 50x50 for indoor cameras, 80x80 or higher for outdoor cameras.
 min_face_width = 50
 min_face_height = 50
+
+[TELEGRAM_ALERTS]
+# Minimum minutes between Telegram alerts for the SAME camera.
+# This prevents alert flooding when a light, tree, or background object
+# repeatedly triggers the camera. Set to 0 to disable cooldown (not recommended).
+# Recommended: 5 minutes for outdoor cameras, 2 minutes for indoor cameras.
+alert_cooldown_minutes = 5
+
+# Minimum minutes between Telegram alerts for the SAME known visitor.
+# Prevents repeated "Sujit spotted" alerts when someone stays in frame.
+# Set to 0 to alert on every single detection.
+known_visitor_alert_cooldown_minutes = 10
 
 [CAMERAS]
 # Add your camera RTSP streams here

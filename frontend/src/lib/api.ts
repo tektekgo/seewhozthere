@@ -118,6 +118,18 @@ export const api = {
     return res.json();
   },
 
+  // --- Storage health ---
+  getStorageHealth: () => fetchFromApi("/api/storage", {
+    total_snapshots: 0,
+    snapshots_this_week: 0,
+    disk_mb_used: 0,
+    oldest_snapshot: null as string | null,
+    last_cleanup_date: null as string | null,
+    last_cleanup_freed_mb: 0,
+    last_cleanup_deleted: 0,
+    total_cleanups: 0,
+  }),
+
   // --- Service control ---
   getServiceStatus: () =>
     fetchFromApi("/api/service/status", { active: false, installed: false, status: "unknown" }),

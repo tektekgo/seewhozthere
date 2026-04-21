@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 import sqlite3
 from pathlib import Path
+import pytz
+from app.config import TIMEZONE
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
@@ -35,7 +37,7 @@ class Analytics:
         total_detections = cursor.fetchone()['count']
 
         # Today's detections
-        today = datetime.now().date()
+        today = datetime.now(pytz.timezone(TIMEZONE)).date()
         cursor.execute("""
             SELECT COUNT(*) as count FROM sightings
             WHERE substr(timestamp, 1, 10) = ?
@@ -70,7 +72,7 @@ class Analytics:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        today = datetime.now().date()
+        today = datetime.now(pytz.timezone(TIMEZONE)).date()
         
         # Initialize all hours
         hourly_data = []
@@ -113,7 +115,7 @@ class Analytics:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        today = datetime.now().date()
+        today = datetime.now(pytz.timezone(TIMEZONE)).date()
         
         cursor.execute("""
             SELECT COUNT(*) as count FROM sightings 
@@ -142,7 +144,7 @@ class Analytics:
         # Get data for last 7 days
         weekly_data = []
         for i in range(6, -1, -1):
-            date = datetime.now().date() - timedelta(days=i)
+            date = datetime.now(pytz.timezone(TIMEZONE)).date() - timedelta(days=i)
             day_name = date.strftime('%a')  # Mon, Tue, etc.
             
             cursor.execute("""
@@ -166,7 +168,7 @@ class Analytics:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        today = datetime.now().date()
+        today = datetime.now(pytz.timezone(TIMEZONE)).date()
         
         cursor.execute("""
             SELECT camera_name, COUNT(*) as count
@@ -191,7 +193,7 @@ class Analytics:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        today = datetime.now().date()
+        today = datetime.now(pytz.timezone(TIMEZONE)).date()
         
         cursor.execute("""
             SELECT 
@@ -227,7 +229,7 @@ class Analytics:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        today = datetime.now().date()
+        today = datetime.now(pytz.timezone(TIMEZONE)).date()
 
         cursor.execute("""
             SELECT
@@ -274,7 +276,7 @@ class Analytics:
         cursor = conn.cursor()
         
         # Get data for last 7 days
-        start_date = datetime.now().date() - timedelta(days=6)
+        start_date = datetime.now(pytz.timezone(TIMEZONE)).date() - timedelta(days=6)
         
         cursor.execute("""
             SELECT 

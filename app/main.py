@@ -835,9 +835,121 @@ async def get_system_status():
     }
 
 
+
+# --- Storage Health API Endpoint ---
+
+@app.get("/api/storage")
+async def get_storage_health():
+    """
+    Return storage health metrics for the dashboard Storage Health panel.
+    Reports snapshot counts, disk usage, and cleanup history.
+    """
+    import sqlite3
+    import re
+
+    snapshots_dir = PROJECT_ROOT / "data" / "snapshots"
+    db_path = PROJECT_ROOT / "data" / "seewhozthere.db"
+    cleanup_log = PROJECT_ROOT / "cleanup.log"
+
+    # --- Snapshot counts ---
+    total_snapshots = 0
+    snapshots_this_week = 0
+    oldest_snapshot: Optional[str] = None
+
+    try:
+        if db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+
+            cur.execute("SELECT COUNT(*) as cnt FROM sightings WHERE snapshot_path IS NOT NULL AND snapshot_path != ''")
+            row = cur.fetchone()
+            total_snapshots = row["cnt"] if row else 0
+
+            cur.execute(
+                "SELECT COUNT(*) as cnt FROM sightings "
+                "WHERE snapshot_path IS NOT NULL AND snapshot_path != '' "
+                "AND timestamp >= datetime('now', '-7 days')"
+            )
+            row = cur.fetchone()
+            snapshots_this_week = row["cnt"] if row else 0
+
+            cur.execute(
+                "SELECT timestamp FROM sightings "
+                "WHERE snapshot_path IS NOT NULL AND snapshot_path != '' "
+                "ORDER BY timestamp ASC LIMIT 1"
+            )
+            row = cur.fetchone()
+            oldest_snapshot = row["timestamp"] if row else None
+
+            conn.close()
+    except Exception:
+        pass
+
+    # --- Disk space used by snapshot files ---
+    disk_bytes_used = 0
+    try:
+        if snapshots_dir.exists():
+            disk_bytes_used = sum(
+                f.stat().st_size for f in snapshots_dir.iterdir() if f.is_file()
+            )
+    except Exception:
+        disk_bytes_used = 0
+
+    disk_mb_used = round(disk_bytes_used / (1024 * 1024), 2)
+
+    # --- Cleanup log parsing ---
+    last_cleanup_date: Optional[str] = None
+    last_cleanup_freed_mb: float = 0.0
+    last_cleanup_deleted: int = 0
+    total_cleanups: int = 0
+
+    try:
+        if cleanup_log.exists():
+            log_text = cleanup_log.read_text(errors="ignore")
+            total_cleanups = log_text.count("Starting SeeWhozThere\u00ae cleanup")
+            lines = log_text.splitlines()
+            found_freed = False
+            found_deleted = False
+            for line in reversed(lines):
+                if not found_freed and "freeing" in line and "MB" in line:
+                    m = re.search(r"freeing ([\d.]+) MB", line)
+                    if m:
+                        last_cleanup_freed_mb = float(m.group(1))
+                        found_freed = True
+                if not found_deleted and "Deleted" in line and "snapshot images" in line:
+                    m = re.search(r"Deleted (\d+) snapshot", line)
+                    if m:
+                        last_cleanup_deleted = int(m.group(1))
+                        found_deleted = True
+                if last_cleanup_date is None:
+                    m = re.match(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", line)
+                    if m:
+                        last_cleanup_date = m.group(1)
+                if last_cleanup_date and found_freed and found_deleted:
+                    break
+    except Exception:
+        pass
+
+    return {
+        "total_snapshots": total_snapshots,
+        "snapshots_this_week": snapshots_this_week,
+        "disk_mb_used": disk_mb_used,
+        "oldest_snapshot": oldest_snapshot,
+        "last_cleanup_date": last_cleanup_date,
+        "last_cleanup_freed_mb": last_cleanup_freed_mb,
+        "last_cleanup_deleted": last_cleanup_deleted,
+        "total_cleanups": total_cleanups,
+    }
+
+
 # --- Analytics API Endpoints ---
 
 @app.get("/api/analytics/stats")
+async def get_analytics_stats():
+    """Get overall statistics for dashboard."""
+    analytics = get_analytics()
+    return analytics.get_stats()
 async def get_analytics_stats():
     """Get overall statistics for dashboard."""
     analytics = get_analytics()
