@@ -521,6 +521,7 @@ const History = () => {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showBulkNameDialog, setShowBulkNameDialog] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkWronging, setBulkWronging] = useState(false);
 
   // Lightbox state
   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
@@ -613,6 +614,9 @@ const History = () => {
   const selectedUnknownIds = filtered
     .filter((s) => selectedIds.has(s.id) && !s.visitor_name)
     .map((s) => s.id);
+  const selectedKnownIds = filtered
+    .filter((s) => selectedIds.has(s.id) && !!s.visitor_name)
+    .map((s) => s.id);
 
   const clearUrlFilters = () => {
     setDateFilter(null);
@@ -662,6 +666,24 @@ const History = () => {
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  const handleBulkWrong = async () => {
+    const ids = selectedKnownIds;
+    if (ids.length === 0) return;
+    setBulkWronging(true);
+    try {
+      const res = await api.bulkUnidentifySightings(ids);
+      setSightings((prev) =>
+        prev.map((s) => ids.includes(s.id) ? { ...s, visitor_name: null } : s)
+      );
+      clearSelection();
+      toast.success(`${res.updated ?? ids.length} sighting${ids.length !== 1 ? "s" : ""} marked as Unknown`);
+    } catch {
+      toast.error("Bulk discard failed");
+    } finally {
+      setBulkWronging(false);
+    }
+  };
 
   return (
     <main className="container py-6 space-y-5">
@@ -773,6 +795,18 @@ const History = () => {
               <Button size="sm" variant="outline" className="text-xs" onClick={() => setShowBulkNameDialog(true)}>
                 <Users className="h-3.5 w-3.5 mr-1" />
                 Name {selectedUnknownIds.length} Unknown
+              </Button>
+            )}
+            {selectedKnownIds.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs text-amber-600 border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:text-amber-700"
+                onClick={handleBulkWrong}
+                disabled={bulkWronging}
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1" />
+                {bulkWronging ? "Discarding…" : `Wrong — ${selectedKnownIds.length} Known`}
               </Button>
             )}
             <Button

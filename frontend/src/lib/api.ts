@@ -105,6 +105,15 @@ export const api = {
     });
     return res.json();
   },
+  bulkUnidentifySightings: async (ids: number[]) => {
+    const baseUrl = getApiUrl();
+    const res = await fetch(`${baseUrl}/api/sightings/bulk-unidentify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    return res.json();
+  },
 
   // --- Camera config ---
   getCamerasConfig: () => fetchFromApi("/api/config/cameras", { cameras: {} }),

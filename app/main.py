@@ -811,6 +811,29 @@ async def bulk_delete_sightings(ids: list[int] = Body(..., embed=True)):
     return {"success": True, "deleted": len(found_ids)}
 
 
+
+@app.post("/api/sightings/bulk-unidentify")
+async def bulk_unidentify_sightings(ids: list[int] = Body(..., embed=True)):
+    """
+    Remove visitor associations from multiple sightings at once.
+    Sets visitor_id = NULL on each sighting so they appear as Unknown.
+    Does NOT delete the sighting records or snapshot files.
+    """
+    if not ids:
+        return {"success": True, "updated": 0}
+    db = get_db()
+    conn = db._get_connection()
+    cursor = conn.cursor()
+    placeholders = ",".join("?" for _ in ids)
+    cursor.execute(
+        f"UPDATE sightings SET visitor_id = NULL WHERE id IN ({placeholders})",
+        ids,
+    )
+    updated = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return {"success": True, "updated": updated}
+
 @app.get("/api/status")
 async def get_system_status():
     """Get current system status.
