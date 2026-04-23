@@ -35,6 +35,7 @@ import {
   CheckCircle2,
   XCircle,
   CalendarDays,
+  RotateCcw,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -311,10 +312,12 @@ function VisitorCard({
   visitor,
   onEdit,
   onDelete,
+  onReset,
 }: {
   visitor: Visitor;
   onEdit: (v: Visitor) => void;
   onDelete: (v: Visitor) => void;
+  onReset: (v: Visitor) => void;
 }) {
   return (
     <Card className="flex flex-col gap-0 overflow-hidden hover:shadow-md transition-shadow">
@@ -328,16 +331,27 @@ function VisitorCard({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                title="Edit"
+                title="Edit / Re-enroll photo"
                 onClick={() => onEdit(visitor)}
               >
                 <Upload className="h-3.5 w-3.5" />
               </Button>
+              {visitor.has_encoding && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                  title="Reset face data — clears polluted encoding so they can be re-enrolled cleanly"
+                  onClick={() => onReset(visitor)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-destructive hover:text-destructive"
-                title="Remove"
+                title="Remove visitor"
                 onClick={() => onDelete(visitor)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -389,6 +403,8 @@ export default function People() {
   const [showAdd, setShowAdd] = useState(false);
   const [editTarget, setEditTarget] = useState<Visitor | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Visitor | null>(null);
+  const [resetTarget, setResetTarget] = useState<Visitor | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const loadVisitors = async () => {
     setLoading(true);
@@ -402,6 +418,24 @@ export default function People() {
     }
   };
 
+  const handleReset = async () => {
+    if (!resetTarget) return;
+    setResetting(true);
+    try {
+      const res = await api.resetVisitorEncoding(resetTarget.id);
+      if (res.success) {
+        toast.success(`Face data cleared for ${resetTarget.name}. They will appear as Unknown until re-enrolled.`);
+        loadVisitors();
+      } else {
+        toast.error("Failed to reset face data");
+      }
+    } catch {
+      toast.error("Failed to reset face data");
+    } finally {
+      setResetting(false);
+      setResetTarget(null);
+    }
+  };
   useEffect(() => {
     loadVisitors();
   }, []);
@@ -508,6 +542,7 @@ export default function People() {
               visitor={v}
               onEdit={setEditTarget}
               onDelete={setDeleteTarget}
+              onReset={setResetTarget}
             />
           ))}
         </div>
@@ -530,6 +565,29 @@ export default function People() {
         onClose={() => setDeleteTarget(null)}
         onDeleted={loadVisitors}
       />
+      {/* Reset Face Data confirmation dialog */}
+      <AlertDialog open={!!resetTarget} onOpenChange={(o) => { if (!o) setResetTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Face Data for {resetTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will clear all stored face encodings for <strong>{resetTarget?.name}</strong>.
+              They will appear as <em>Unknown</em> in future detections until a clean encoding is
+              captured from a new correct identification. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleReset}
+              disabled={resetting}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {resetting ? "Resetting…" : "Reset Face Data"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

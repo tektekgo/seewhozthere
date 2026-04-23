@@ -542,6 +542,43 @@ async def delete_visitor(visitor_id: int):
         raise HTTPException(status_code=500, detail="Failed to delete visitor")
 
 
+
+@app.post("/api/visitors/{visitor_id}/reset-encoding")
+async def reset_visitor_encoding(visitor_id: int):
+    """
+    Clear a visitor's stored face encoding so they can be re-enrolled cleanly.
+    Removes all bad/polluted encoding data without deleting the visitor record.
+    The visitor will appear as Unknown until a clean encoding is captured.
+    """
+    db = get_db()
+    visitor = db.get_visitor(visitor_id)
+    if not visitor:
+        raise HTTPException(status_code=404, detail="Visitor not found")
+    try:
+        conn = db._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE visitors SET face_encoding = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (visitor_id,),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reset encoding: {e}")
+    # Reload known faces so the processor stops recognising this person until re-enrolled
+    try:
+        processor = get_processor()
+        processor.reload_known_faces()
+    except Exception:
+        pass
+    return {
+        "success": True,
+        "message": (
+            f"Face encoding cleared for '{visitor['name']}'. "
+            "They will appear as Unknown until re-enrolled from a clean detection."
+        ),
+    }
+
 @app.post("/api/sightings/{sighting_id}/identify")
 async def identify_sighting(sighting_id: int, visitor_id: int = Form(...)):
     """

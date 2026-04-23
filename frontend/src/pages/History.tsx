@@ -4,6 +4,7 @@ import {
   Search, UserCheck, UserX, Camera, Clock, Calendar,
   Plus, Tag, Trash2, RefreshCw, CheckSquare, Square,
   CheckCheck, X, Users, Video, Filter as FilterIcon, ZoomIn,
+  XCircle, CheckCircle2,
 } from "lucide-react";
 import { ImageLightbox, type LightboxImage } from "@/components/ImageLightbox";
 import { Input } from "@/components/ui/input";
@@ -342,10 +343,11 @@ interface SightingCardProps {
   onToggleSelect: (id: number) => void;
   onName: (s: Sighting) => void;
   onDelete: (id: number) => void;
+  onDiscard: (id: number) => void;
   onImageClick: (img: LightboxImage) => void;
 }
 
-function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onName, onDelete, onImageClick }: SightingCardProps) {
+function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onName, onDelete, onDiscard, onImageClick }: SightingCardProps) {
   const { date, time } = formatDateTime(sighting.timestamp);
   const isKnown = !!sighting.visitor_name;
 
@@ -430,16 +432,36 @@ function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onNam
             <Clock className="h-3 w-3 shrink-0" />{time}
           </p>
           {/* Action buttons */}
-          <div className="flex gap-1.5 mt-auto pt-1" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-wrap gap-1 mt-auto pt-1" onClick={(e) => e.stopPropagation()}>
+            {/* Rename / Name button — always shown */}
             <Button
               size="sm"
               variant={isKnown ? "ghost" : "outline"}
               className="h-6 text-xs px-2"
               onClick={() => onName(sighting)}
             >
-              <Tag className="h-3 w-3 mr-1" />{isKnown ? "Rename" : "Name"}
+              <Tag className="h-3 w-3 mr-1" />{isKnown ? "Re-assign" : "Name"}
             </Button>
-            <Button size="sm" variant="ghost" className="h-6 text-xs px-2 text-destructive hover:text-destructive" onClick={() => onDelete(sighting.id)}>
+            {/* Wrong — Discard: only for known sightings */}
+            {isKnown && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-xs px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                title="Wrong ID — unlink this person and mark as Unknown"
+                onClick={() => onDiscard(sighting.id)}
+              >
+                <XCircle className="h-3 w-3 mr-1" />Wrong
+              </Button>
+            )}
+            {/* Delete */}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-xs px-2 text-destructive hover:text-destructive"
+              title="Delete this sighting and its snapshot"
+              onClick={() => onDelete(sighting.id)}
+            >
               <Trash2 className="h-3 w-3" />
             </Button>
           </div>
@@ -611,6 +633,17 @@ const History = () => {
     setSightings((prev) => prev.filter((s) => s.id !== id));
     setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
     toast.success("Detection deleted");
+  };
+  const handleDiscard = async (id: number) => {
+    try {
+      await api.unidentifySighting(id);
+      setSightings((prev) =>
+        prev.map((s) => s.id === id ? { ...s, visitor_name: null } : s)
+      );
+      toast.success("Identification removed — sighting marked as Unknown");
+    } catch {
+      toast.error("Failed to discard identification");
+    }
   };
 
   const handleBulkDelete = async () => {
@@ -808,6 +841,7 @@ const History = () => {
                 onToggleSelect={toggleSelect}
                 onName={setNamingSighting}
                 onDelete={handleDelete}
+                onDiscard={handleDiscard}
                 onImageClick={setLightbox}
               />
             ))}

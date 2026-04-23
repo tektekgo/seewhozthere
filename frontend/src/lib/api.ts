@@ -130,6 +130,12 @@ export const api = {
     total_cleanups: 0,
   }),
 
+  resetVisitorEncoding: async (id: number) => {
+    const baseUrl = getApiUrl();
+    const res = await fetch(`${baseUrl}/api/visitors/${id}/reset-encoding`, { method: "POST" });
+    return res.json();
+  },
+
   // --- Service control ---
   getServiceStatus: () =>
     fetchFromApi("/api/service/status", { active: false, installed: false, status: "unknown" }),
