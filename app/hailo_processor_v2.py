@@ -427,10 +427,11 @@ class HailoProcessorV2:
                             visitor = self.db.get_visitor(visitor_id)
                             visitor_name = visitor['name'] if visitor else 'Unknown'
                             print(f"[HailoProcessorV2] Recognized {visitor_name} on {camera_name} (confidence: {confidence:.2f})")
-                            # Send Telegram alert for known visitor (fire-and-forget in background)
+                            # Send Telegram alert for known visitor — pass sighting_id to enable
+                            # inline correction buttons (Correct / Wrong / Delete) in the message.
                             threading.Thread(
                                 target=send_known_face_alert,
-                                args=(visitor_name, camera_name, snapshot_path),
+                                args=(visitor_name, camera_name, snapshot_path, sighting_id),
                                 daemon=True
                             ).start()
                         else:

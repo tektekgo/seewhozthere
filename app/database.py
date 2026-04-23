@@ -456,7 +456,59 @@ class Database:
         conn.close()
         
         return success
-    
+
+    def delete_sighting(self, sighting_id: int) -> bool:
+        """
+        Permanently delete a sighting record and its snapshot file.
+
+        Args:
+            sighting_id: The sighting's database ID
+
+        Returns:
+            True if the deletion was successful, False otherwise
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        # Fetch snapshot path before deleting so we can remove the file
+        cursor.execute("SELECT snapshot_path FROM sightings WHERE id = ?", (sighting_id,))
+        row = cursor.fetchone()
+        snapshot_path = dict(row)["snapshot_path"] if row else None
+        cursor.execute("DELETE FROM sightings WHERE id = ?", (sighting_id,))
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        # Remove the snapshot file if it exists
+        if success and snapshot_path:
+            try:
+                import os as _os
+                if _os.path.exists(snapshot_path):
+                    _os.remove(snapshot_path)
+            except Exception:
+                pass
+        return success
+
+    def unlink_sighting(self, sighting_id: int) -> bool:
+        """
+        Remove the visitor association from a sighting, marking it as Unknown.
+        The sighting record and snapshot are kept; only visitor_id is cleared.
+
+        Args:
+            sighting_id: The sighting's database ID
+
+        Returns:
+            True if the update was successful, False otherwise
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE sightings SET visitor_id = NULL WHERE id = ?",
+            (sighting_id,),
+        )
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return success
+
     def get_statistics(self) -> Dict:
         """
         Get overall statistics about the database.

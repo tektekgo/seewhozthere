@@ -587,6 +587,21 @@ class TelegramCallbackHandler:
             sighting_id = int(data.split("_", 1)[1])
             self._start_add_new_person(cq_id, sighting_id, chat_id, msg_id)
 
+        # ── correct_<sighting_id> ───────────────────────────────────────────────
+        elif data.startswith("correct_"):
+            sighting_id = int(data.split("_", 1)[1])
+            self._correct_sighting(cq_id, sighting_id, chat_id, msg_id)
+
+        # ── wrongdel_<sighting_id> ─────────────────────────────────────────────
+        elif data.startswith("wrongdel_"):
+            sighting_id = int(data.split("_", 1)[1])
+            self._wrongdel_sighting(cq_id, sighting_id, chat_id, msg_id)
+
+        # ── wrong_<sighting_id> ────────────────────────────────────────────────
+        elif data.startswith("wrong_"):
+            sighting_id = int(data.split("_", 1)[1])
+            self._wrong_sighting(cq_id, sighting_id, chat_id, msg_id)
+
         else:
             answer_callback_query(cq_id, "Unknown action.", alert=True)
 
@@ -697,6 +712,72 @@ class TelegramCallbackHandler:
         except Exception as e:
             print(f"[Telegram Callback] _identify_sighting error: {e}")
             answer_callback_query(cq_id, "Error updating identification.", alert=True)
+
+    def _correct_sighting(self, cq_id: str, sighting_id: int, chat_id: str, msg_id: int):
+        """Confirm the known-face identification is correct and dismiss buttons."""
+        try:
+            answer_callback_query(cq_id, "Confirmed \u2705")
+            tz = pytz.timezone(TIMEZONE)
+            now = datetime.now(tz).strftime("%I:%M:%S %p %Z")
+            new_caption = (
+                f"<b>\u2705 Identification confirmed</b>\n"
+                f"Updated at: {now}\n"
+                f"\u2014 SeeWhozThere\u00ae"
+            )
+            edit_message_caption(chat_id, msg_id, new_caption)
+            edit_message_reply_markup(chat_id, msg_id, None)
+            with self._pending_lock:
+                self._pending.pop(sighting_id, None)
+            print(f"[Telegram Callback] Sighting #{sighting_id} confirmed correct.")
+        except Exception as e:
+            print(f"[Telegram Callback] _correct_sighting error: {e}")
+            answer_callback_query(cq_id, "Error.", alert=True)
+
+    def _wrong_sighting(self, cq_id: str, sighting_id: int, chat_id: str, msg_id: int):
+        """Unlink visitor from sighting (mark as Unknown) and dismiss buttons."""
+        try:
+            from app.database import get_db
+            db = get_db()
+            db.unlink_sighting(sighting_id)
+            answer_callback_query(cq_id, "Marked as Unknown \u274c")
+            tz = pytz.timezone(TIMEZONE)
+            now = datetime.now(tz).strftime("%I:%M:%S %p %Z")
+            new_caption = (
+                f"<b>\u274c Wrong ID \u2014 Marked as Unknown</b>\n"
+                f"Updated at: {now}\n"
+                f"\u2014 SeeWhozThere\u00ae"
+            )
+            edit_message_caption(chat_id, msg_id, new_caption)
+            edit_message_reply_markup(chat_id, msg_id, None)
+            with self._pending_lock:
+                self._pending.pop(sighting_id, None)
+            print(f"[Telegram Callback] Sighting #{sighting_id} unlinked (marked Unknown).")
+        except Exception as e:
+            print(f"[Telegram Callback] _wrong_sighting error: {e}")
+            answer_callback_query(cq_id, "Error.", alert=True)
+
+    def _wrongdel_sighting(self, cq_id: str, sighting_id: int, chat_id: str, msg_id: int):
+        """Delete the sighting entirely and dismiss buttons."""
+        try:
+            from app.database import get_db
+            db = get_db()
+            db.delete_sighting(sighting_id)
+            answer_callback_query(cq_id, "Sighting deleted \U0001f5d1")
+            tz = pytz.timezone(TIMEZONE)
+            now = datetime.now(tz).strftime("%I:%M:%S %p %Z")
+            new_caption = (
+                f"<b>\U0001f5d1 False positive \u2014 Sighting deleted</b>\n"
+                f"Removed at: {now}\n"
+                f"\u2014 SeeWhozThere\u00ae"
+            )
+            edit_message_caption(chat_id, msg_id, new_caption)
+            edit_message_reply_markup(chat_id, msg_id, None)
+            with self._pending_lock:
+                self._pending.pop(sighting_id, None)
+            print(f"[Telegram Callback] Sighting #{sighting_id} deleted.")
+        except Exception as e:
+            print(f"[Telegram Callback] _wrongdel_sighting error: {e}")
+            answer_callback_query(cq_id, "Error.", alert=True)
 
     def _keep_unknown(self, cq_id: str, sighting_id: int, chat_id: str, msg_id: int):
         """Dismiss the buttons and keep the sighting as Unknown."""
