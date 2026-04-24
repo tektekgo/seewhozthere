@@ -34,7 +34,7 @@ import threading
 import queue
 import traceback
 
-from app.config import get_cameras, TIMEZONE, DETECTION_COOLDOWN_SECONDS, DETECTION_CONFIDENCE_THRESHOLD, DETECTION_MIN_FACE_WIDTH, DETECTION_MIN_FACE_HEIGHT
+from app.config import get_cameras, get_detection_zones, TIMEZONE, DETECTION_COOLDOWN_SECONDS, DETECTION_CONFIDENCE_THRESHOLD, DETECTION_MIN_FACE_WIDTH, DETECTION_MIN_FACE_HEIGHT
 from app.database import get_db
 from app.hailo_face_detector_v4 import create_face_detector
 from app.face_recognition_engine import get_face_recognition_engine
@@ -67,6 +67,7 @@ class HailoProcessorV2:
         self.snapshot_cooldown = DETECTION_COOLDOWN_SECONDS  # Min seconds between saved snapshots per camera
         self.confidence_threshold = DETECTION_CONFIDENCE_THRESHOLD
         self.min_face_size = (DETECTION_MIN_FACE_WIDTH, DETECTION_MIN_FACE_HEIGHT)  # Read from config.ini [DETECTION]
+        self.detection_zones = get_detection_zones()  # Per-camera zone masks from config.ini [DETECTION_ZONES]
         
         # Per-camera last-snapshot timestamp (used to enforce cooldown)
         self.last_snapshot_time: Dict[str, float] = {}
@@ -399,6 +400,22 @@ class HailoProcessorV2:
                         tz = pytz.timezone(TIMEZONE)
                         timestamp = datetime.now(tz)
                         
+                        # Zone masking — skip detections outside the configured zone
+                        if camera_name in self.detection_zones:
+                            x1_pct, y1_pct, x2_pct, y2_pct = self.detection_zones[camera_name]
+                            fh, fw = frame.shape[:2]
+                            bx, by, bw, bh = bbox
+                            # Use the center of the face bounding box
+                            cx = bx + bw / 2
+                            cy = by + bh / 2
+                            # Convert zone percentages to pixel coordinates
+                            zx1 = fw * x1_pct / 100
+                            zy1 = fh * y1_pct / 100
+                            zx2 = fw * x2_pct / 100
+                            zy2 = fh * y2_pct / 100
+                            if not (zx1 <= cx <= zx2 and zy1 <= cy <= zy2):
+                                continue  # Face center is outside the zone — skip
+
                         # Enforce per-camera snapshot cooldown
                         last_snap = self.last_snapshot_time.get(camera_name, 0)
                         if current_time - last_snap < self.snapshot_cooldown:

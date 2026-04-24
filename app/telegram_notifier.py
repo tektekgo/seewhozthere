@@ -298,6 +298,13 @@ def _build_identify_keyboard(sighting_id: int) -> dict:
         },
     ])
 
+    # False positive row — lets user delete non-face detections with one tap
+    buttons.append([
+        {
+            "text": "\U0001f5d1\ufe0f False Positive \u2014 Delete",
+            "callback_data": f"wrongdel_{sighting_id}",
+        },
+    ])
     return {"inline_keyboard": buttons}
 
 
@@ -355,6 +362,7 @@ def send_known_face_alert(
     visitor_name: str,
     camera_name: str,
     snapshot_path: Optional[str] = None,
+    sighting_id: Optional[int] = None,
 ):
     """
     Fire an instant alert when a known visitor is recognised.
@@ -379,11 +387,22 @@ def send_known_face_alert(
         f"Time: {now}\n"
         f"\u2014 SeeWhozThere\u00ae"
     )
+    # Build correction keyboard if we have a sighting_id
+    reply_markup = None
+    if sighting_id is not None:
+        try:
+            reply_markup = _build_correction_keyboard(sighting_id)
+        except Exception as e:
+            print(f"[Telegram] Could not build correction keyboard: {e}")
     if snapshot_path and os.path.exists(snapshot_path):
-        send_photo(snapshot_path, caption)
+        msg = send_photo(snapshot_path, caption, reply_markup=reply_markup)
     else:
-        send_message(caption)
-    print(f"[Telegram] Sent known-face alert for {visitor_name} on {camera_name}")
+        msg = send_message(caption, reply_markup=reply_markup)
+    # Register message so callback handler can edit it when user taps a button
+    if msg and sighting_id is not None:
+        _callback_handler.register_message(sighting_id, msg)
+    print(f"[Telegram] Sent known-face alert for {visitor_name} on {camera_name}"
+          + (f" (sighting #{sighting_id})" if sighting_id else ""))
 
 
 # ─── Daily summary ────────────────────────────────────────────────────────────

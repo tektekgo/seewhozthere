@@ -59,8 +59,34 @@ confidence_threshold = 0.6
 # Minimum face size in pixels (width x height) to be recorded.
 # Rejects small distant detections caused by foliage, shadows, or passing cars.
 # Recommended: 50x50 for indoor cameras, 80x80 or higher for outdoor cameras.
-min_face_width = 50
-min_face_height = 50
+min_face_width = 80
+min_face_height = 80
+
+
+[DETECTION_ZONES]
+# Optional: restrict face detection to a specific region of the camera frame.
+# This is the most effective way to eliminate false positives from background
+# light sources, trees, or distant objects that are in the same frame as the
+# area you actually want to monitor.
+#
+# Format: camera_name = x1,y1,x2,y2
+# Values are PERCENTAGES (0-100) of the frame width and height.
+#   x1,y1 = top-left corner of the zone
+#   x2,y2 = bottom-right corner of the zone
+#
+# Example: only detect faces in the center-bottom area of the frame
+# (useful for a front door camera where the door is in the lower-center)
+#   front_door = 20,40,80,100
+#   (ignores top 40% of frame and left/right 20% margins)
+#
+# To find the right values for your camera:
+#   1. Take a screenshot of your camera feed
+#   2. Identify the area where a real person would appear
+#   3. Estimate the percentage coordinates of that area
+#   4. Start conservative (large zone) and narrow it down over time
+#
+# Leave this section empty or remove camera entries to use the full frame.
+# front_door = 20,40,80,100
 
 [TELEGRAM_ALERTS]
 # Minimum minutes between Telegram alerts for the SAME camera.

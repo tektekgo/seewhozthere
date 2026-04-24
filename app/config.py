@@ -27,6 +27,45 @@ def get_cameras() -> dict:
     return {}
 
 
+
+
+def get_detection_zones() -> dict:
+    """
+    Return per-camera detection zones from [DETECTION_ZONES] in config.ini.
+
+    Each entry is:
+        camera_name = x1%,y1%,x2%,y2%
+
+    Values are percentages (0-100) of the frame width/height, so the zone
+    definition works regardless of camera resolution.
+
+    Example:
+        front_door = 20,30,80,90
+        (means: only detect faces in the middle 60% width, lower 60% height)
+
+    Returns a dict: { camera_name: (x1_pct, y1_pct, x2_pct, y2_pct) }
+    If no zone is configured for a camera, the full frame is used.
+    """
+    cfg = _load_config()
+    zones = {}
+    if cfg.has_section("DETECTION_ZONES"):
+        for camera_name, value in cfg.items("DETECTION_ZONES"):
+            try:
+                parts = [float(v.strip()) for v in value.split(",")]
+                if len(parts) == 4:
+                    x1, y1, x2, y2 = parts
+                    # Clamp to 0-100
+                    x1 = max(0.0, min(100.0, x1))
+                    y1 = max(0.0, min(100.0, y1))
+                    x2 = max(0.0, min(100.0, x2))
+                    y2 = max(0.0, min(100.0, y2))
+                    zones[camera_name] = (x1, y1, x2, y2)
+                    print(f"[Config] Detection zone for {camera_name}: x={x1}-{x2}%, y={y1}-{y2}%")
+                else:
+                    print(f"[Config] Invalid zone for {camera_name}: expected x1,y1,x2,y2 — got {value}")
+            except ValueError:
+                print(f"[Config] Could not parse zone for {camera_name}: {value}")
+    return zones
 # Load once at import time for settings that don't change at runtime
 _config = _load_config()
 
