@@ -308,6 +308,112 @@ def _build_identify_keyboard(sighting_id: int) -> dict:
     return {"inline_keyboard": buttons}
 
 
+
+def _build_correction_keyboard(sighting_id: int) -> dict:
+    """
+    Build an InlineKeyboardMarkup for a known-face alert.
+    Shows:
+      - "✅ Correct — It's <name>" (confirm button)
+      - One button per known person to re-assign
+      - "➕ Add as New Person"
+      - "❌ Wrong — Discard" and "🗑️ Delete Sighting" on the last row
+    """
+    from app.database import get_db
+    db = get_db()
+    visitors = db.get_all_visitors()
+
+    # Fetch last-seen timestamps so we can sort by recency
+    recency: dict = {}
+    try:
+        conn = db._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT visitor_id, MAX(timestamp) AS last_seen
+            FROM sightings
+            WHERE visitor_id IS NOT NULL
+            GROUP BY visitor_id
+            """
+        )
+        for row in cursor.fetchall():
+            recency[row["visitor_id"]] = row["last_seen"] or ""
+        conn.close()
+    except Exception:
+        pass
+
+    # Try to get the current visitor name for this sighting
+    current_name = None
+    try:
+        conn = db._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT v.name FROM sightings s
+            JOIN visitors v ON s.visitor_id = v.id
+            WHERE s.id = ?
+            """,
+            (sighting_id,)
+        )
+        row = cursor.fetchone()
+        if row:
+            current_name = row["name"]
+        conn.close()
+    except Exception:
+        pass
+
+    # Sort visitors: those seen most recently first
+    visitors_sorted = sorted(
+        visitors,
+        key=lambda v: recency.get(v["id"], ""),
+        reverse=True,
+    )
+
+    buttons: list = []
+
+    # Confirm button — top row
+    confirm_text = (
+        f"\u2705 Correct \u2014 It's {current_name}"
+        if current_name
+        else "\u2705 Correct"
+    )
+    buttons.append([
+        {
+            "text": confirm_text,
+            "callback_data": f"correct_{sighting_id}",
+        }
+    ])
+
+    # One button per known person to re-assign (capped at MAX_IDENTIFY_BUTTONS)
+    for visitor in visitors_sorted[:MAX_IDENTIFY_BUTTONS]:
+        buttons.append([
+            {
+                "text": f"\U0001f464 It's {visitor['name']}",
+                "callback_data": f"id_{sighting_id}_{visitor['id']}",
+            }
+        ])
+
+    # Add as new person
+    buttons.append([
+        {
+            "text": "\u2795 Add as New Person",
+            "callback_data": f"new_{sighting_id}",
+        },
+    ])
+
+    # Wrong / Delete row
+    buttons.append([
+        {
+            "text": "\u274c Wrong \u2014 Discard",
+            "callback_data": f"wrong_{sighting_id}",
+        },
+        {
+            "text": "\U0001f5d1\ufe0f Delete Sighting",
+            "callback_data": f"wrongdel_{sighting_id}",
+        },
+    ])
+
+    return {"inline_keyboard": buttons}
+
 # ─── Instant alerts ──────────────────────────────────────────────────────────
 
 def send_unknown_face_alert(
