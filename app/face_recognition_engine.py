@@ -1,5 +1,5 @@
 """
-SeeWhozThere Face Recognition Engine
+SeeWhozThere® Face Recognition Engine
 
 This module implements face recognition using a lightweight approach optimized for
 Raspberry Pi 5. It uses OpenCV's DNN face recognition model for encoding faces
@@ -10,6 +10,7 @@ Features:
 - Efficient face comparison using cosine similarity
 - Support for multiple known faces per person
 - Optimized for embedded systems
+- Recognition threshold configurable via config.ini [DETECTION] recognition_threshold
 """
 
 import os
@@ -18,6 +19,30 @@ import numpy as np
 import pickle
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
+
+
+def _load_recognition_threshold() -> float:
+    """
+    Load the recognition threshold from config.ini [DETECTION] section.
+    Falls back to 0.45 if not set — this is intentionally lower than the
+    original hardcoded 0.6 to account for outdoor lighting variation,
+    face angle, and the HOG/LBP feature extractor's sensitivity.
+
+    To tune:
+      - Lower value (e.g. 0.40) = more permissive, more matches, more false IDs
+      - Higher value (e.g. 0.55) = more strict, fewer matches, more Unknowns
+    """
+    try:
+        import configparser
+        config_path = Path(__file__).parent.parent / "config.ini"
+        cfg = configparser.RawConfigParser()
+        cfg.read(str(config_path))
+        threshold = cfg.getfloat("DETECTION", "recognition_threshold", fallback=0.45)
+        print(f"[FaceRecognition] Recognition threshold loaded from config: {threshold}")
+        return threshold
+    except Exception as e:
+        print(f"[FaceRecognition] Could not read recognition_threshold from config ({e}), using 0.45")
+        return 0.45
 
 
 class FaceRecognitionEngine:
@@ -36,7 +61,7 @@ class FaceRecognitionEngine:
             model_path: Path to the face recognition model directory.
                        If None, uses default OpenCV models.
         """
-        self.recognition_threshold = 0.6  # Cosine similarity threshold
+        self.recognition_threshold = _load_recognition_threshold()
         self.face_encoder = None
         self._load_model(model_path)
         
@@ -56,7 +81,7 @@ class FaceRecognitionEngine:
         # - OpenCV's face recognition DNN model
         # - FaceNet (TensorFlow Lite version for Pi)
         
-        print("[FaceRecognition] Using lightweight feature-based recognition")
+        print(f"[FaceRecognition] Using lightweight feature-based recognition (threshold={self.recognition_threshold})")
         
     def encode_face(self, face_image: np.ndarray) -> np.ndarray:
         """
@@ -196,7 +221,8 @@ class FaceRecognitionEngine:
             known_encodings: Dictionary mapping visitor_id to list of their face encodings
             
         Returns:
-            Tuple of (visitor_id, confidence) or (None, 0.0) if no match found
+            Tuple of (visitor_id, confidence) or (None, best_similarity) if no match found.
+            Note: even when returning None, best_similarity is returned so callers can log it.
         """
         best_match_id = None
         best_similarity = 0.0
@@ -213,7 +239,8 @@ class FaceRecognitionEngine:
         if best_similarity >= self.recognition_threshold:
             return best_match_id, best_similarity
         else:
-            return None, 0.0
+            # Return None but keep best_similarity so caller can log it for diagnostics
+            return None, best_similarity
     
     def save_encoding(self, encoding: np.ndarray, filepath: str):
         """Save a face encoding to disk"""
