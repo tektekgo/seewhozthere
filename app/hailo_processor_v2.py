@@ -108,6 +108,8 @@ class HailoProcessorV2:
         print(f"[HailoProcessorV2] Hailo device available: {self.hailo_available}")
         print(f"[HailoProcessorV2] Face detector: {type(self.face_detector).__name__}")
         print(f"[HailoProcessorV2] Known people: {len(self.known_encodings)}")
+        print(f"[HailoProcessorV2] Config — confidence_threshold={self.confidence_threshold}, min_face_size={self.min_face_size}, snapshot_cooldown={self.snapshot_cooldown}s")
+        print(f"[HailoProcessorV2] Detection zones: {self.detection_zones}")
     
     def _check_hailo_device(self) -> bool:
         """
@@ -169,6 +171,10 @@ class HailoProcessorV2:
                     self.known_encodings[visitor_id].append(encoding)
             
             print(f"[HailoProcessorV2] Loaded {len(self.known_encodings)} known people")
+            for vid, encs in self.known_encodings.items():
+                visitor = self.db.get_visitor(vid)
+                name = visitor['name'] if visitor else f"id={vid}"
+                print(f"[HailoProcessorV2]   → {name}: {len(encs)} encoding(s), shape={encs[0].shape if encs else 'N/A'}")
             
         except Exception as e:
             print(f"[HailoProcessorV2] Error loading known faces: {e}")
@@ -359,6 +365,19 @@ class HailoProcessorV2:
         frame_count = 0
         reconnect_attempts = 0
         max_reconnect_attempts = 5
+
+        # Get frame dimensions once for zone debug logging
+        ret0, frame0 = cap.read()
+        frame_h, frame_w = (frame0.shape[:2] if ret0 and frame0 is not None else (0, 0))
+        if camera_name in self.detection_zones:
+            x1p, y1p, x2p, y2p = self.detection_zones[camera_name]
+            zx1 = frame_w * x1p / 100
+            zy1 = frame_h * y1p / 100
+            zx2 = frame_w * x2p / 100
+            zy2 = frame_h * y2p / 100
+            print(f"[HailoProcessorV2] Zone for {camera_name}: frame={frame_w}x{frame_h}, "
+                  f"zone_pct=({x1p},{y1p})-({x2p},{y2p}), "
+                  f"zone_px=({zx1:.0f},{zy1:.0f})-({zx2:.0f},{zy2:.0f})")
         
         try:
             while self.running:
@@ -395,40 +414,56 @@ class HailoProcessorV2:
                     else:
                         faces = self._detect_faces_opencv(frame)
                     
+                    if faces:
+                        fh, fw = frame.shape[:2]
+                        print(f"[DETECT] {camera_name}: {len(faces)} face(s) found in {fw}x{fh} frame")
+                    
                     # Process each detected face
                     for bbox in faces:
                         tz = pytz.timezone(TIMEZONE)
                         timestamp = datetime.now(tz)
                         
-                        # Zone masking — skip detections outside the configured zone
+                        bx, by, bw, bh = bbox
+                        cx = bx + bw / 2
+                        cy = by + bh / 2
+                        fh, fw = frame.shape[:2]
+
+                        # ── Min face size check ──────────────────────────────────
+                        min_w, min_h = self.min_face_size
+                        if bw < min_w or bh < min_h:
+                            print(f"[DETECT] {camera_name}: SKIP face bbox=({bx},{by},{bw},{bh}) — too small (min {min_w}x{min_h})")
+                            continue
+
+                        # ── Zone masking ─────────────────────────────────────────
                         if camera_name in self.detection_zones:
                             x1_pct, y1_pct, x2_pct, y2_pct = self.detection_zones[camera_name]
-                            fh, fw = frame.shape[:2]
-                            bx, by, bw, bh = bbox
-                            # Use the center of the face bounding box
-                            cx = bx + bw / 2
-                            cy = by + bh / 2
-                            # Convert zone percentages to pixel coordinates
                             zx1 = fw * x1_pct / 100
                             zy1 = fh * y1_pct / 100
                             zx2 = fw * x2_pct / 100
                             zy2 = fh * y2_pct / 100
-                            if not (zx1 <= cx <= zx2 and zy1 <= cy <= zy2):
-                                continue  # Face center is outside the zone — skip
+                            in_zone = (zx1 <= cx <= zx2 and zy1 <= cy <= zy2)
+                            if not in_zone:
+                                print(f"[DETECT] {camera_name}: SKIP face center=({cx:.0f},{cy:.0f}) bbox=({bx},{by},{bw},{bh}) — outside zone ({zx1:.0f},{zy1:.0f})-({zx2:.0f},{zy2:.0f})")
+                                continue
+                            else:
+                                print(f"[DETECT] {camera_name}: PASS zone — face center=({cx:.0f},{cy:.0f}) bbox=({bx},{by},{bw},{bh})")
 
-                        # Enforce per-camera snapshot cooldown
+                        # ── Snapshot cooldown ────────────────────────────────────
                         last_snap = self.last_snapshot_time.get(camera_name, 0)
-                        if current_time - last_snap < self.snapshot_cooldown:
-                            continue  # Too soon — skip this detection
+                        time_since = current_time - last_snap
+                        if time_since < self.snapshot_cooldown:
+                            print(f"[DETECT] {camera_name}: SKIP — cooldown ({time_since:.1f}s < {self.snapshot_cooldown}s)")
+                            continue
                         self.last_snapshot_time[camera_name] = current_time
                         
-                        # Recognize face
+                        # ── Face recognition ─────────────────────────────────────
                         visitor_id, confidence = self._recognize_face(frame, bbox)
+                        print(f"[RECOG] {camera_name}: visitor_id={visitor_id}, confidence={confidence:.4f}, threshold={self.face_recognition.recognition_threshold}")
                         
-                        # Save snapshot with bounding box
+                        # ── Save snapshot ────────────────────────────────────────
                         snapshot_path = self._save_snapshot(frame, camera_name, timestamp, bbox)
                         
-                        # Record sighting — capture the returned sighting_id
+                        # ── Record sighting ──────────────────────────────────────
                         sighting_id = self.db.add_sighting(
                             visitor_id=visitor_id,
                             camera_name=camera_name,
@@ -437,15 +472,13 @@ class HailoProcessorV2:
                             snapshot_path=snapshot_path
                         )
                         
-                        # Update stats and send Telegram notifications
+                        # ── Telegram notifications ───────────────────────────────
                         self.stats['total_detections'] += 1
                         if visitor_id is not None:
                             self.stats['total_recognitions'] += 1
                             visitor = self.db.get_visitor(visitor_id)
                             visitor_name = visitor['name'] if visitor else 'Unknown'
-                            print(f"[HailoProcessorV2] Recognized {visitor_name} on {camera_name} (confidence: {confidence:.2f})")
-                            # Send Telegram alert for known visitor — pass sighting_id to enable
-                            # inline correction buttons (Correct / Wrong / Delete) in the message.
+                            print(f"[HailoProcessorV2] Recognized {visitor_name} on {camera_name} (confidence: {confidence:.4f})")
                             threading.Thread(
                                 target=send_known_face_alert,
                                 args=(visitor_name, camera_name, snapshot_path, sighting_id),
@@ -453,9 +486,7 @@ class HailoProcessorV2:
                             ).start()
                         else:
                             self.stats['unknown_faces'] += 1
-                            print(f"[HailoProcessorV2] Unknown face detected on {camera_name}")
-                            # Send Telegram alert for unknown face — pass sighting_id to enable
-                            # inline identification buttons in the Telegram message.
+                            print(f"[HailoProcessorV2] Unknown face detected on {camera_name} (best similarity: {confidence:.4f})")
                             threading.Thread(
                                 target=send_unknown_face_alert,
                                 args=(camera_name, snapshot_path, sighting_id),
