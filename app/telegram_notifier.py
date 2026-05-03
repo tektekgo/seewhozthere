@@ -794,8 +794,8 @@ class TelegramCallbackHandler:
                 answer_callback_query(cq_id, "Sighting not found.", alert=True)
                 return
 
-            # Attempt to save face encoding if visitor has none
-            if not visitor.get("face_encoding") and snapshot_path:
+            # Always accumulate a new encoding from this snapshot (Part 2 learning)
+            if snapshot_path:
                 try:
                     import cv2 as _cv2
                     from app.face_recognition_engine import get_face_recognition_engine as _get_fre
@@ -804,14 +804,19 @@ class TelegramCallbackHandler:
                         fre = _get_fre()
                         encoding = fre.encode_face(img)
                         encoding_bytes = encoding.astype(np.float32).tobytes()
-                        thumb = visitor.get("thumbnail_path") or snapshot_path
-                        db.update_visitor(visitor_id, face_encoding=encoding_bytes, thumbnail_path=thumb)
+                        # Add to multi-encoding table (auto-capped at 20)
+                        db.add_face_encoding(visitor_id, encoding_bytes, source='sighting')
+                        # Keep legacy column in sync for first encoding
+                        if not visitor.get("face_encoding"):
+                            thumb = visitor.get("thumbnail_path") or snapshot_path
+                            db.update_visitor(visitor_id, face_encoding=encoding_bytes, thumbnail_path=thumb)
                         try:
                             from app.hailo_processor_v2 import get_processor
                             get_processor().reload_known_faces()
                         except Exception:
                             pass
-                        print(f"[Telegram Callback] Saved encoding for {visitor['name']}")
+                        enc_count = db.get_encoding_count(visitor_id)
+                        print(f"[Telegram Callback] Added encoding #{enc_count} for {visitor['name']}")
                 except Exception as enc_err:
                     print(f"[Telegram Callback] Encoding extraction failed: {enc_err}")
 
@@ -839,8 +844,51 @@ class TelegramCallbackHandler:
             answer_callback_query(cq_id, "Error updating identification.", alert=True)
 
     def _correct_sighting(self, cq_id: str, sighting_id: int, chat_id: str, msg_id: int):
-        """Confirm the known-face identification is correct and dismiss buttons."""
+        """Confirm the known-face identification is correct, accumulate encoding, dismiss buttons."""
         try:
+            from app.database import get_db
+            import numpy as np
+
+            db = get_db()
+
+            # Find the visitor linked to this sighting
+            conn = db._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT visitor_id, snapshot_path FROM sightings WHERE id = ?",
+                (sighting_id,)
+            )
+            row = cursor.fetchone()
+            conn.close()
+            row_dict = dict(row) if row else {}
+            visitor_id = row_dict.get("visitor_id")
+            snapshot_path = row_dict.get("snapshot_path")
+
+            # Accumulate encoding from this confirmed-correct snapshot
+            if visitor_id and snapshot_path:
+                try:
+                    import cv2 as _cv2
+                    from app.face_recognition_engine import get_face_recognition_engine as _get_fre
+                    img = _cv2.imread(snapshot_path)
+                    if img is not None:
+                        fre = _get_fre()
+                        encoding = fre.encode_face(img)
+                        encoding_bytes = encoding.astype(np.float32).tobytes()
+                        db.add_face_encoding(visitor_id, encoding_bytes, source='confirmed')
+                        # Keep legacy column in sync
+                        visitor = db.get_visitor(visitor_id)
+                        if visitor and not visitor.get("face_encoding"):
+                            db.update_visitor(visitor_id, face_encoding=encoding_bytes)
+                        try:
+                            from app.hailo_processor_v2 import get_processor
+                            get_processor().reload_known_faces()
+                        except Exception:
+                            pass
+                        enc_count = db.get_encoding_count(visitor_id)
+                        print(f"[Telegram Callback] Confirmed correct — added encoding #{enc_count} for visitor {visitor_id}")
+                except Exception as enc_err:
+                    print(f"[Telegram Callback] Encoding extraction on confirm failed: {enc_err}")
+
             answer_callback_query(cq_id, "Confirmed \u2705")
             tz = pytz.timezone(TIMEZONE)
             now = datetime.now(tz).strftime("%I:%M:%S %p %Z")
@@ -961,7 +1009,7 @@ class TelegramCallbackHandler:
             # Link sighting
             db.identify_sighting(sighting_id, visitor_id)
 
-            # Attempt to extract and save face encoding
+            # Extract and save face encoding (both legacy column and new table)
             if snapshot_path:
                 try:
                     import cv2 as _cv2
@@ -971,6 +1019,9 @@ class TelegramCallbackHandler:
                         fre = _get_fre()
                         encoding = fre.encode_face(img)
                         encoding_bytes = encoding.astype(np.float32).tobytes()
+                        # Add to multi-encoding table
+                        db.add_face_encoding(visitor_id, encoding_bytes, source='new_person')
+                        # Also set legacy column
                         db.update_visitor(visitor_id, face_encoding=encoding_bytes)
                         try:
                             from app.hailo_processor_v2 import get_processor

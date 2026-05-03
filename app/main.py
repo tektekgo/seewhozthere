@@ -546,23 +546,18 @@ async def delete_visitor(visitor_id: int):
 @app.post("/api/visitors/{visitor_id}/reset-encoding")
 async def reset_visitor_encoding(visitor_id: int):
     """
-    Clear a visitor's stored face encoding so they can be re-enrolled cleanly.
-    Removes all bad/polluted encoding data without deleting the visitor record.
-    The visitor will appear as Unknown until a clean encoding is captured.
+    Clear ALL stored face encodings for a visitor so they can be re-enrolled cleanly.
+    Clears both the legacy face_encoding column and the new face_encodings table.
+    The visitor will appear as Unknown until clean encodings are captured.
     """
     db = get_db()
     visitor = db.get_visitor(visitor_id)
     if not visitor:
         raise HTTPException(status_code=404, detail="Visitor not found")
     try:
-        conn = db._get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE visitors SET face_encoding = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (visitor_id,),
-        )
-        conn.commit()
-        conn.close()
+        # clear_face_encodings handles both the new table and the legacy column
+        deleted = db.clear_face_encodings(visitor_id)
+        print(f"[reset-encoding] Cleared {deleted} encoding(s) for '{visitor['name']}'")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to reset encoding: {e}")
     # Reload known faces so the processor stops recognising this person until re-enrolled
@@ -574,7 +569,7 @@ async def reset_visitor_encoding(visitor_id: int):
     return {
         "success": True,
         "message": (
-            f"Face encoding cleared for '{visitor['name']}'. "
+            f"All face encodings cleared for '{visitor['name']}'. "
             "They will appear as Unknown until re-enrolled from a clean detection."
         ),
     }
@@ -582,66 +577,74 @@ async def reset_visitor_encoding(visitor_id: int):
 @app.post("/api/sightings/{sighting_id}/identify")
 async def identify_sighting(sighting_id: int, visitor_id: int = Form(...)):
     """
-    Associate an unknown sighting with a known visitor.
-    
-    If the visitor does not yet have a face encoding saved, this endpoint will
-    attempt to extract one from the sighting's snapshot image and save it.
-    This teaches the system to recognise this person in future detections.
+    Associate a sighting with a known visitor and accumulate a new face encoding.
+
+    Every confirmed identification adds a new encoding to the face_encodings table
+    (capped at 20 per person). This means the more you correct the system, the
+    better it gets at recognising each person across different lighting and angles.
     """
     db = get_db()
-    
+
     # Verify visitor exists
     visitor = db.get_visitor(visitor_id)
     if not visitor:
         raise HTTPException(status_code=404, detail="Visitor not found")
-    
-    # Get the sighting so we can find its snapshot
+
+    # Get the sighting snapshot path
     conn = db._get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT snapshot_path FROM sightings WHERE id = ?", (sighting_id,))
     row = cursor.fetchone()
     conn.close()
     snapshot_path = dict(row)["snapshot_path"] if row else None
-    
-    # Update sighting visitor_id
+
+    # Associate sighting with visitor
     success = db.identify_sighting(sighting_id, visitor_id)
     if not success:
         raise HTTPException(status_code=404, detail="Sighting not found")
-    
+
     encoding_saved = False
-    
-    # If this visitor has no face encoding yet, extract one from the snapshot
-    if not visitor.get("face_encoding") and snapshot_path:
+    encoding_count = db.get_encoding_count(visitor_id)
+
+    # Always try to extract and accumulate a new encoding from this snapshot.
+    # This is the core of Part 2: every confirmed sighting teaches the system.
+    if snapshot_path:
         try:
             import cv2 as _cv2
             from app.face_recognition_engine import get_face_recognition_engine as _get_fre
-            
+
             img = _cv2.imread(snapshot_path)
             if img is not None:
                 fre = _get_fre()
                 encoding = fre.encode_face(img)
                 encoding_bytes = encoding.astype(np.float32).tobytes()
-                
-                # Save encoding and use snapshot as thumbnail if none exists
-                thumb = visitor.get("thumbnail_path") or snapshot_path
-                db.update_visitor(visitor_id, face_encoding=encoding_bytes, thumbnail_path=thumb)
-                
+
+                # Add to multi-encoding table (auto-capped at 20)
+                db.add_face_encoding(visitor_id, encoding_bytes, source='sighting')
+                encoding_count = db.get_encoding_count(visitor_id)
+
+                # Also keep the legacy face_encoding column in sync (first encoding only)
+                if not visitor.get("face_encoding"):
+                    thumb = visitor.get("thumbnail_path") or snapshot_path
+                    db.update_visitor(visitor_id, face_encoding=encoding_bytes, thumbnail_path=thumb)
+
                 # Reload known faces in the running detection processor
                 try:
                     processor = get_processor()
                     processor.reload_known_faces()
-                    print(f"[identify] Saved encoding for {visitor['name']} and reloaded detector")
+                    print(f"[identify] Added encoding #{encoding_count} for {visitor['name']} — reloaded detector")
                 except Exception as reload_err:
                     print(f"[identify] Encoding saved but reload failed: {reload_err}")
-                
+
                 encoding_saved = True
         except Exception as enc_err:
             print(f"[identify] Could not extract encoding from snapshot: {enc_err}")
-    
+
     return {
         "success": True,
         "message": f"Identified as {visitor['name']}",
         "encoding_saved": encoding_saved,
+        "encoding_count": encoding_count,
         "visitor_name": visitor['name']
     }
 

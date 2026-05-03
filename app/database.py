@@ -7,6 +7,7 @@ It uses SQLite for local, privacy-first storage.
 Database Schema:
 - visitors: Stores known people with their assigned names
 - sightings: Stores each detection event with timestamp and metadata
+- face_encodings: Stores multiple face encodings per visitor for better recognition
 """
 
 import sqlite3
@@ -86,6 +87,25 @@ class Database:
             )
         """)
         
+        # face_encodings table — stores multiple encodings per visitor.
+        # Each row is one encoding extracted from one confirmed sighting.
+        # Capped at MAX_ENCODINGS_PER_VISITOR per person to avoid unbounded growth.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS face_encodings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                visitor_id INTEGER NOT NULL,
+                encoding BLOB NOT NULL,
+                source TEXT DEFAULT 'manual',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (visitor_id) REFERENCES visitors(id) ON DELETE CASCADE
+            )
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_face_encodings_visitor
+            ON face_encodings(visitor_id, created_at DESC)
+        """)
+
         # Create index for faster queries
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_sightings_timestamp 
@@ -431,6 +451,145 @@ class Database:
         
         return [self._parse_datetime_fields(dict(row)) for row in rows]
     
+    # ── Multi-encoding support ───────────────────────────────────────────────
+
+    MAX_ENCODINGS_PER_VISITOR = 20  # Cap to avoid unbounded DB growth
+
+    def add_face_encoding(self, visitor_id: int, encoding_blob: bytes,
+                          source: str = 'sighting') -> bool:
+        """
+        Add an additional face encoding for a visitor.
+
+        Keeps at most MAX_ENCODINGS_PER_VISITOR encodings per person by
+        deleting the oldest ones when the cap is exceeded.
+
+        Args:
+            visitor_id: The visitor's database ID
+            encoding_blob: Raw bytes of the numpy float32 encoding
+            source: Where this encoding came from ('sighting', 'manual', 'upload')
+
+        Returns:
+            True if the encoding was saved
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO face_encodings (visitor_id, encoding, source)
+                VALUES (?, ?, ?)
+            """, (visitor_id, encoding_blob, source))
+
+            # Enforce cap — delete oldest if over limit
+            cursor.execute("""
+                DELETE FROM face_encodings
+                WHERE visitor_id = ?
+                  AND id NOT IN (
+                      SELECT id FROM face_encodings
+                      WHERE visitor_id = ?
+                      ORDER BY created_at DESC
+                      LIMIT ?
+                  )
+            """, (visitor_id, visitor_id, self.MAX_ENCODINGS_PER_VISITOR))
+
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"[Database] Error adding face encoding for visitor {visitor_id}: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_face_encodings(self, visitor_id: int) -> List[bytes]:
+        """
+        Return all stored face encoding blobs for a visitor, newest first.
+
+        Args:
+            visitor_id: The visitor's database ID
+
+        Returns:
+            List of raw encoding bytes (each is a float32 numpy array serialised
+            with .tobytes())
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT encoding FROM face_encodings
+            WHERE visitor_id = ?
+            ORDER BY created_at DESC
+        """, (visitor_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [row['encoding'] for row in rows]
+
+    def get_encoding_count(self, visitor_id: int) -> int:
+        """Return the number of face encodings stored for a visitor."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) as cnt FROM face_encodings WHERE visitor_id = ?",
+            (visitor_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return row['cnt'] if row else 0
+
+    def clear_face_encodings(self, visitor_id: int) -> int:
+        """
+        Delete all face encodings for a visitor from the face_encodings table.
+        Also clears the legacy face_encoding column on the visitors row.
+
+        Returns:
+            Number of encoding rows deleted
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM face_encodings WHERE visitor_id = ?",
+            (visitor_id,)
+        )
+        deleted = cursor.rowcount
+        # Also clear legacy single-encoding column
+        cursor.execute(
+            "UPDATE visitors SET face_encoding = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (visitor_id,)
+        )
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def migrate_legacy_encodings(self):
+        """
+        One-time migration: copy any existing face_encoding BLOB from the
+        visitors table into the new face_encodings table so existing trained
+        visitors are not lost on upgrade.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, face_encoding FROM visitors
+            WHERE face_encoding IS NOT NULL
+        """)
+        rows = cursor.fetchall()
+        migrated = 0
+        for row in rows:
+            vid = row['id']
+            blob = row['face_encoding']
+            # Only migrate if not already in face_encodings table
+            cursor.execute(
+                "SELECT COUNT(*) as cnt FROM face_encodings WHERE visitor_id = ?",
+                (vid,)
+            )
+            if cursor.fetchone()['cnt'] == 0:
+                cursor.execute("""
+                    INSERT INTO face_encodings (visitor_id, encoding, source)
+                    VALUES (?, ?, 'legacy')
+                """, (vid, blob))
+                migrated += 1
+        conn.commit()
+        conn.close()
+        if migrated:
+            print(f"[Database] Migrated {migrated} legacy face encoding(s) to face_encodings table")
+
     def identify_sighting(self, sighting_id: int, visitor_id: int) -> bool:
         """
         Associate an unknown sighting with a known visitor.

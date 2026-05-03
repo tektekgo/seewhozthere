@@ -152,30 +152,49 @@ class HailoProcessorV2:
             return False
     
     def _load_known_faces(self):
-        """Load all known face encodings from the database"""
+        """
+        Load all known face encodings from the database.
+
+        Priority order:
+        1. face_encodings table (multi-encoding, newest first, up to 20 per person)
+        2. Legacy visitors.face_encoding BLOB (single encoding, backward compat)
+
+        Running migrate_legacy_encodings() first ensures existing single-encoding
+        visitors are promoted to the new table automatically.
+        """
         try:
+            # Migrate any legacy single-encodings into the new table (no-op if done)
+            self.db.migrate_legacy_encodings()
+
             visitors = self.db.get_all_visitors()
             self.known_encodings = {}
-            
+
             for visitor in visitors:
                 visitor_id = visitor['id']
-                face_encoding_blob = visitor.get('face_encoding')
-                
-                if face_encoding_blob:
-                    # Deserialize the encoding
-                    encoding = np.frombuffer(face_encoding_blob, dtype=np.float32)
-                    
-                    if visitor_id not in self.known_encodings:
-                        self.known_encodings[visitor_id] = []
-                    
-                    self.known_encodings[visitor_id].append(encoding)
-            
+                encodings = []
+
+                # 1. Load from multi-encoding table
+                blobs = self.db.get_face_encodings(visitor_id)
+                for blob in blobs:
+                    enc = np.frombuffer(blob, dtype=np.float32)
+                    encodings.append(enc)
+
+                # 2. Fallback: legacy single-encoding column (if table is empty)
+                if not encodings:
+                    blob = visitor.get('face_encoding')
+                    if blob:
+                        enc = np.frombuffer(blob, dtype=np.float32)
+                        encodings.append(enc)
+
+                if encodings:
+                    self.known_encodings[visitor_id] = encodings
+
             print(f"[HailoProcessorV2] Loaded {len(self.known_encodings)} known people")
             for vid, encs in self.known_encodings.items():
                 visitor = self.db.get_visitor(vid)
                 name = visitor['name'] if visitor else f"id={vid}"
-                print(f"[HailoProcessorV2]   → {name}: {len(encs)} encoding(s), shape={encs[0].shape if encs else 'N/A'}")
-            
+                print(f"[HailoProcessorV2]   → {name}: {len(encs)} encoding(s)")
+
         except Exception as e:
             print(f"[HailoProcessorV2] Error loading known faces: {e}")
             traceback.print_exc()
