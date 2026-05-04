@@ -1025,11 +1025,27 @@ class TelegramCallbackHandler:
                         db.update_visitor(visitor_id, face_encoding=encoding_bytes)
                         try:
                             from app.hailo_processor_v2 import get_processor
-                            get_processor().reload_known_faces()
-                        except Exception:
-                            pass
+                            proc = get_processor()
+                            if proc is not None:
+                                proc.reload_known_faces()
+                                print(f"[Telegram Callback] Known faces reloaded after adding '{name}'")
+                            else:
+                                print("[Telegram Callback] WARNING: get_processor() returned None — faces not reloaded in memory")
+                        except Exception as reload_err:
+                            print(f"[Telegram Callback] WARNING: reload_known_faces failed: {reload_err}")
                 except Exception as enc_err:
                     print(f"[Telegram Callback] Encoding extraction failed: {enc_err}")
+                    import traceback as _tb2; _tb2.print_exc()
+
+            # Always reload known faces even if encoding extraction failed,
+            # so the new visitor at least appears in the list (as Unknown-able)
+            try:
+                from app.hailo_processor_v2 import get_processor as _gp
+                proc = _gp()
+                if proc is not None:
+                    proc.reload_known_faces()
+            except Exception:
+                pass
 
             send_message(
                 f"\u2705 <b>{name}</b> has been added and the sighting has been linked.\n"

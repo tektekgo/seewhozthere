@@ -64,33 +64,117 @@ def _load_insightface_app():
     """
     Load InsightFace FaceAnalysis app with buffalo_sc model (recognition only).
     Returns the app instance, or None if InsightFace is not installed.
+
+    Two-stage loading strategy:
+    1. Try FaceAnalysis (high-level wrapper) — preferred
+    2. If that fails, try loading the ONNX model directly via onnxruntime
+       (works around numpy version conflicts with app.prepare())
     """
+    import traceback as _tb
+
+    # ── Stage 1: FaceAnalysis wrapper ────────────────────────────────────────
     try:
         import insightface
         from insightface.app import FaceAnalysis
 
-        # buffalo_sc: compact ArcFace model — best balance of speed and accuracy
-        # on CPU-only hardware like Raspberry Pi 5.
-        # det_size=(320,320) is sufficient since Hailo already found the face;
-        # we are only using InsightFace for the embedding, not detection.
         app = FaceAnalysis(
             name="buffalo_sc",
             providers=["CPUExecutionProvider"],
-            allowed_modules=["recognition"],   # skip re-detection, landmark, age/gender
+            allowed_modules=["recognition"],
         )
         app.prepare(ctx_id=0, det_size=(320, 320))
-        print("[FaceRecognition] InsightFace buffalo_sc loaded successfully (ArcFace mode)")
+        print("[FaceRecognition] InsightFace buffalo_sc loaded via FaceAnalysis (ArcFace mode)")
         return app
     except ImportError:
         print(
             "[FaceRecognition] WARNING: InsightFace not installed. "
-            "Run: pip3 install insightface onnxruntime\n"
+            "Run: pip3 install insightface onnxruntime --break-system-packages\n"
             "[FaceRecognition] Falling back to HOG/LBP engine."
         )
         return None
     except Exception as e:
-        print(f"[FaceRecognition] InsightFace load error: {e}. Falling back to HOG/LBP.")
+        print(f"[FaceRecognition] FaceAnalysis load failed: {type(e).__name__}: {e}")
+        _tb.print_exc()
+        print("[FaceRecognition] Trying direct ONNX model load as fallback...")
+
+    # ── Stage 2: Direct ONNX model load ──────────────────────────────────────
+    # This bypasses app.prepare() which can fail due to numpy version conflicts.
+    # We load just the recognition model (w600k_mbf.onnx) directly.
+    try:
+        import os as _os
+        import onnxruntime as _ort
+
+        model_dir = _os.path.expanduser("~/.insightface/models/buffalo_sc")
+        model_path = _os.path.join(model_dir, "w600k_mbf.onnx")
+
+        if not _os.path.exists(model_path):
+            print(f"[FaceRecognition] Model not found at {model_path} — cannot use direct ONNX load")
+            return None
+
+        sess = _ort.InferenceSession(
+            model_path,
+            providers=["CPUExecutionProvider"]
+        )
+        print(f"[FaceRecognition] Direct ONNX load succeeded: {model_path}")
+        print("[FaceRecognition] InsightFace ArcFace active via direct ONNX session")
+        # Wrap in a simple object so the rest of the engine can call it uniformly
+        return _DirectONNXRecognizer(sess)
+    except Exception as e2:
+        print(f"[FaceRecognition] Direct ONNX load also failed: {type(e2).__name__}: {e2}")
+        _tb.print_exc()
+        print("[FaceRecognition] Falling back to HOG/LBP engine.")
         return None
+
+
+class _DirectONNXRecognizer:
+    """
+    Thin wrapper around a raw onnxruntime InferenceSession for the
+    w600k_mbf ArcFace model.  Provides the same .get(image) interface
+    as InsightFace FaceAnalysis so the engine code needs no changes.
+
+    Input:  BGR image (any size) — we resize to 112×112 and normalise
+    Output: list of face objects with .embedding (512-dim float32 array)
+    """
+
+    INPUT_SIZE = (112, 112)
+    MEAN = 127.5
+    STD  = 127.5
+
+    def __init__(self, session):
+        self._sess = session
+        self._input_name  = session.get_inputs()[0].name
+        self._output_name = session.get_outputs()[0].name
+
+    def get(self, image):
+        """Run ArcFace on the image and return a list with one face object."""
+        import numpy as _np
+        import cv2 as _cv2
+
+        # Resize and normalise to model input format
+        face = _cv2.resize(image, self.INPUT_SIZE)
+        face = face.astype(_np.float32)
+        face = (face - self.MEAN) / self.STD
+        # HWC → NCHW
+        face = face.transpose(2, 0, 1)[_np.newaxis, :, :, :]
+
+        embedding = self._sess.run(
+            [self._output_name],
+            {self._input_name: face}
+        )[0][0]  # shape: (512,)
+
+        embedding = embedding.astype(_np.float32)
+        norm = _np.linalg.norm(embedding)
+        embedding = embedding / (norm + 1e-7)
+
+        # Return a simple namespace so largest.embedding works
+        class _Face:
+            pass
+        f = _Face()
+        f.embedding = embedding
+        # Fake bbox covering the whole image so max() by area picks it
+        h, w = image.shape[:2]
+        f.bbox = [0, 0, w, h]
+        return [f]
 
 
 # ── HOG/LBP fallback (kept for graceful degradation) ─────────────────────────
