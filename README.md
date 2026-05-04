@@ -12,7 +12,7 @@ SeeWhozThere® is an advanced, privacy-first home security and face recognition 
 
 ### AI & Detection
 - **Real-time Face Detection** powered by the Hailo-8L NPU using the RetinaFace MobileNet model (25–30 FPS per camera stream).
-- **Face Recognition** that automatically identifies known visitors and flags unknown faces with a configurable confidence threshold.
+- **Deep Learning Face Recognition** powered by InsightFace (ArcFace `buffalo_sc` model) for highly accurate outdoor identification across varying angles and lighting conditions.
 - **Configurable Detection Tuning** — set minimum face size and confidence threshold per environment (indoor vs. outdoor) to eliminate false positives from foliage, shadows, or passing vehicles.
 - **Snapshot Cooldown** — configurable minimum seconds between saved snapshots per camera to prevent photo floods.
 - **Camera Watchdog** — automatically restarts any camera thread that dies due to a network drop, without requiring a service restart.
@@ -179,7 +179,8 @@ driveway   = rtsp://admin:MyStr0ngPass@192.168.1.101:554/stream1
 | Key | Default | Description |
 |---|---|---|
 | `snapshot_cooldown_seconds` | `15` | Minimum seconds between saved snapshots per camera. Lower = more photos per visit; higher = fewer. Recommended: 15–30 s. |
-| `confidence_threshold` | `0.6` | Minimum detection confidence (0.0–1.0). Recommended: `0.6` indoors, `0.80`–`0.85` outdoors. |
+| `confidence_threshold` | `0.50` | Minimum Hailo detection confidence (0.0–1.0). Recommended: `0.50` for outdoor cameras. |
+| `recognition_threshold` | `0.40` | Minimum ArcFace similarity score (0.0–1.0) to identify a known person. Recommended: `0.40`–`0.45`. |
 | `min_face_width` | `50` | Minimum face width in pixels. Rejects small distant detections. Recommended: `50` indoors, `80`+ outdoors. |
 | `min_face_height` | `50` | Minimum face height in pixels. Same guidance as width. |
 
@@ -276,16 +277,32 @@ The script (`cleanup_snapshots.py`) safely removes snapshot images older than a 
 
 ## 🔄 Updating SeeWhozThere®
 
-When new features are pushed to the repository, updating your Pi is simple:
+When new features are pushed to the repository, updating your Pi requires pulling the code and restarting **both** services.
+
+### The Restart Rule
+
+| What changed | Command to run |
+|---|---|
+| Camera config, detection thresholds in `config.ini` | `sudo systemctl restart seewhozthere` |
+| Face detection/recognition Python files | `sudo systemctl restart seewhozthere` |
+| Web API, Telegram bot, or Frontend JS/CSS | `sudo systemctl restart seewhozthere-web` + browser hard-refresh |
+| **Any `git pull`** | **Restart both** |
+
+### One-Command Restart Alias (Recommended)
+
+To make updates foolproof, add this alias to your Pi once:
+
+```bash
+echo "alias swt-restart='sudo systemctl restart seewhozthere seewhozthere-web.service && echo \"Both SeeWhozThere® services restarted\"'" >> ~/.bashrc && source ~/.bashrc
+```
+
+Then, whenever you pull new code, simply run:
 
 ```bash
 cd ~/projects/seewhozthere
 git pull
-sudo systemctl restart seewhozthere
-sudo systemctl restart seewhozthere-web
+swt-restart
 ```
-
-*Note: Because the built frontend files are tracked in git, no Node.js build step is required on the Pi.*
 
 ---
 
