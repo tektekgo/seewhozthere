@@ -888,15 +888,78 @@ async def get_system_status():
     except Exception:
         known_people = 0
     
+    # 5. Recognition engine info
+    recognition_engine = "Unknown"
+    try:
+        from app.face_recognition_engine import get_face_recognition_engine
+        engine = get_face_recognition_engine()
+        recognition_engine = "ArcFace" if engine._using_arcface else "HOG/LBP"
+    except Exception:
+        recognition_engine = "Unknown"
+
     return {
         "running": detection_running,
         "hailo_available": hailo_available,
         "active_cameras": active_cameras,
         "camera_names": camera_names,
         "known_people": known_people,
-        "face_detector": "Hailo AI" if hailo_available else "OpenCV"
+        "face_detector": "Hailo AI" if hailo_available else "OpenCV",
+        "recognition_engine": recognition_engine
     }
 
+
+
+@app.get("/api/status/recognition")
+async def get_recognition_status():
+    """Detailed recognition engine status for the Settings page."""
+    try:
+        from app.face_recognition_engine import get_face_recognition_engine
+        engine = get_face_recognition_engine()
+        using_arcface = engine._using_arcface
+        threshold = engine.recognition_threshold
+
+        # Count total encodings across all visitors
+        total_encodings = 0
+        people_trained = 0
+        try:
+            db = get_db()
+            visitors = db.get_all_visitors()
+            for v in visitors:
+                encs = db.get_face_encodings(v['id'])
+                count = len(encs)
+                total_encodings += count
+                if count > 0:
+                    people_trained += 1
+        except Exception:
+            pass
+
+        return {
+            "engine": "InsightFace ArcFace (buffalo_sc)" if using_arcface else "HOG/LBP (fallback)",
+            "engine_short": "ArcFace" if using_arcface else "HOG/LBP",
+            "using_arcface": using_arcface,
+            "model": "buffalo_sc — 512-dim embeddings" if using_arcface else "HOG + LBP + Color Histogram",
+            "recognition_threshold": threshold,
+            "people_trained": people_trained,
+            "total_encodings": total_encodings,
+            "status": "optimal" if using_arcface else "degraded",
+            "status_message": (
+                "ArcFace deep learning model active — optimised for outdoor surveillance"
+                if using_arcface else
+                "HOG/LBP fallback active — install insightface for better accuracy"
+            )
+        }
+    except Exception as e:
+        return {
+            "engine": "Unknown",
+            "engine_short": "Unknown",
+            "using_arcface": False,
+            "model": "Unknown",
+            "recognition_threshold": 0.40,
+            "people_trained": 0,
+            "total_encodings": 0,
+            "status": "unknown",
+            "status_message": f"Could not read engine status: {e}"
+        }
 
 
 # --- Storage Health API Endpoint ---

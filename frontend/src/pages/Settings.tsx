@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import {
   Camera, Plus, Trash2, Save, RefreshCw, Cpu, Wifi, WifiOff,
   Info, Play, Square, RotateCcw, Terminal, CheckCircle2, XCircle,
-  Settings2, Shield
+  Settings2, Shield, Brain, Zap, Users, Hash
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +25,19 @@ interface SystemStatus {
   camera_names: string[];
   known_people: number;
   face_detector?: string;
+  recognition_engine?: string;
+}
+
+interface RecognitionStatus {
+  engine: string;
+  engine_short: string;
+  using_arcface: boolean;
+  model: string;
+  recognition_threshold: number;
+  people_trained: number;
+  total_encodings: number;
+  status: string;
+  status_message: string;
 }
 
 interface ServiceStatus {
@@ -37,6 +50,7 @@ const Settings = () => {
   const [cameras, setCameras] = useState<CameraEntry[]>([]);
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
+  const [recognitionStatus, setRecognitionStatus] = useState<RecognitionStatus | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [serviceLoading, setServiceLoading] = useState(false);
@@ -46,10 +60,11 @@ const Settings = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [camData, statusData, svcData] = await Promise.all([
+      const [camData, statusData, svcData, recData] = await Promise.all([
         api.getCamerasConfig(),
         api.getStatus(),
         api.getServiceStatus(),
+        fetch("/api/status/recognition").then(r => r.json()).catch(() => null),
       ]);
       const camArray: CameraEntry[] = Object.entries(camData.cameras || {}).map(
         ([name, url], idx) => ({ id: String(idx), name, url: url as string })
@@ -57,6 +72,7 @@ const Settings = () => {
       setCameras(camArray.length > 0 ? camArray : [{ id: "0", name: "", url: "" }]);
       setStatus(statusData);
       setServiceStatus(svcData);
+      setRecognitionStatus(recData);
     } catch { toast.error("Failed to load settings"); }
     finally { setLoading(false); }
   };
@@ -77,6 +93,13 @@ const Settings = () => {
       toast.success(result.message || "Cameras saved!");
     } catch { toast.error("Failed to save cameras"); }
     finally { setSaving(false); }
+  };
+
+  const refreshRecognition = async () => {
+    try {
+      const data = await fetch("/api/status/recognition").then(r => r.json());
+      setRecognitionStatus(data);
+    } catch { toast.error("Failed to refresh recognition status"); }
   };
 
   const refreshStatus = async () => {
@@ -114,6 +137,83 @@ const Settings = () => {
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-sm text-muted-foreground">Configure cameras, manage services, and view system information</p>
       </div>
+
+      {/* Recognition Engine Card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Brain className="h-4 w-4" />Recognition Engine
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={refreshRecognition}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />Refresh
+            </Button>
+          </div>
+          <CardDescription className="text-xs">
+            Face identification model used to match detected faces against known people
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recognitionStatus ? (
+            <div className="space-y-4">
+              {/* Status banner */}
+              <div className={`flex items-start gap-3 p-3 rounded-lg border ${
+                recognitionStatus.using_arcface
+                  ? "bg-blue-500/5 border-blue-500/20"
+                  : "bg-amber-500/5 border-amber-500/20"
+              }`}>
+                <Brain className={`h-5 w-5 mt-0.5 shrink-0 ${
+                  recognitionStatus.using_arcface ? "text-blue-500" : "text-amber-500"
+                }`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold">{recognitionStatus.engine}</span>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] px-1.5 h-4 ${
+                        recognitionStatus.using_arcface
+                          ? "text-blue-500 border-blue-500/50 bg-blue-500/5"
+                          : "text-amber-500 border-amber-500/50 bg-amber-500/5"
+                      }`}
+                    >
+                      {recognitionStatus.status === "optimal" ? "Optimal" : "Degraded"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{recognitionStatus.status_message}</p>
+                </div>
+              </div>
+
+              {/* Detail grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1"><Zap className="h-3 w-3" />Model</p>
+                  <p className="text-sm font-medium">{recognitionStatus.model}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1"><Settings2 className="h-3 w-3" />Threshold</p>
+                  <p className="text-sm font-medium">{recognitionStatus.recognition_threshold.toFixed(2)}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3" />People Trained</p>
+                  <p className="text-sm font-medium">{recognitionStatus.people_trained}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1"><Hash className="h-3 w-3" />Total Encodings</p>
+                  <p className="text-sm font-medium">{recognitionStatus.total_encodings}</p>
+                </div>
+              </div>
+
+              {/* Training progress hint */}
+              {recognitionStatus.using_arcface && recognitionStatus.total_encodings < 15 && (
+                <div className="p-2.5 rounded-md bg-muted border text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">Building accuracy:</span> {recognitionStatus.total_encodings} of ~15 recommended encodings collected.
+                  Tap “Correct” or “It’s [Name]” in Telegram alerts to add more — recognition improves with each correction.
+                </div>
+              )}
+            </div>
+          ) : <p className="text-sm text-muted-foreground">Loading recognition status...</p>}
+        </CardContent>
+      </Card>
 
       {/* System Status Card */}
       <Card>

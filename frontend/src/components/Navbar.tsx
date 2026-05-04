@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Moon, Sun, Cpu, Camera, Activity, UserPlus, LogOut } from "lucide-react";
+import { Moon, Sun, Cpu, Camera, Activity, UserPlus, LogOut, Brain } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,7 @@ interface SystemStatus {
   hailo_available: boolean;
   active_cameras: number;
   camera_names?: string[];
+  recognition_engine?: string;
 }
 
 function AddVisitorDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -131,6 +132,12 @@ export function Navbar({ onLogout }: { onLogout?: () => void }) {
   const cameraOn = (status?.active_cameras ?? 0) > 0;
   const detectionOn = status?.running === true;
   const aiOn = status?.hailo_available === true;
+  const arcfaceOn = status?.recognition_engine === "ArcFace";
+  const engineLabel = arcfaceOn
+    ? "InsightFace ArcFace (buffalo_sc) — deep learning recognition active, optimised for outdoor surveillance"
+    : status?.recognition_engine === "HOG/LBP"
+    ? "HOG/LBP fallback engine active — recognition accuracy is limited. Install InsightFace for better results."
+    : "Recognition engine status unknown";
 
   const cameraLabel = cameraOn
     ? `${status!.active_cameras} camera${status!.active_cameras !== 1 ? "s" : ""} configured in config.ini`
@@ -229,7 +236,7 @@ export function Navbar({ onLogout }: { onLogout?: () => void }) {
 
                 <span className="w-px h-3.5 bg-border" />
 
-                {/* AI Engine */}
+                {/* AI Engine (Hailo HAT+) */}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-1.5 cursor-default">
@@ -245,6 +252,32 @@ export function Navbar({ onLogout }: { onLogout?: () => void }) {
                   <TooltipContent side="bottom" className="max-w-xs text-xs">
                     <p className="font-semibold mb-0.5">AI Engine</p>
                     <p>{aiLabel}</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                <span className="w-px h-3.5 bg-border" />
+
+                {/* Recognition Engine */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 cursor-default">
+                      <StatusDot on={arcfaceOn} />
+                      <Brain className={`h-3.5 w-3.5 ${arcfaceOn ? "text-blue-500" : "text-amber-500"}`} />
+                      <Badge
+                        variant="outline"
+                        className={`h-4 px-1 text-[9px] font-bold hidden md:inline-flex ${
+                          arcfaceOn
+                            ? "text-blue-500 border-blue-500/50 bg-blue-500/5"
+                            : "text-amber-500 border-amber-500/50 bg-amber-500/5"
+                        }`}
+                      >
+                        {arcfaceOn ? "ArcFace" : (status?.recognition_engine ?? "…")}
+                      </Badge>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    <p className="font-semibold mb-0.5">Recognition Engine</p>
+                    <p>{engineLabel}</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
