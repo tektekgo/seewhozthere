@@ -191,7 +191,7 @@ const Settings = () => {
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground flex items-center gap-1"><Settings2 className="h-3 w-3" />Threshold</p>
-                  <p className="text-sm font-medium">{recognitionStatus.recognition_threshold.toFixed(2)}</p>
+                  <p className="text-sm font-medium">{(recognitionStatus.recognition_threshold ?? 0).toFixed(2)}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3" />People Trained</p>
