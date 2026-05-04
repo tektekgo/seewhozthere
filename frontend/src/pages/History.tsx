@@ -440,7 +440,7 @@ function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onNam
               className="h-6 text-xs px-2"
               onClick={() => onName(sighting)}
             >
-              <Tag className="h-3 w-3 mr-1" />{isKnown ? "Re-assign" : "Name"}
+              <Tag className="h-3 w-3 mr-1" />{isKnown ? "Correct ID" : "Name"}
             </Button>
             {/* Wrong — Discard: only for known sightings */}
             {isKnown && (
@@ -451,7 +451,7 @@ function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onNam
                 title="Wrong ID — unlink this person and mark as Unknown"
                 onClick={() => onDiscard(sighting.id)}
               >
-                <XCircle className="h-3 w-3 mr-1" />Wrong
+                <XCircle className="h-3 w-3 mr-1" />Wrong ID
               </Button>
             )}
             {/* Delete */}
@@ -462,7 +462,7 @@ function SightingCard({ sighting, selected, selectionMode, onToggleSelect, onNam
               title="Delete this sighting and its snapshot"
               onClick={() => onDelete(sighting.id)}
             >
-              <Trash2 className="h-3 w-3" />
+              <Trash2 className="h-3 w-3 mr-1" />Delete
             </Button>
           </div>
         </div>
@@ -806,7 +806,7 @@ const History = () => {
                 disabled={bulkWronging}
               >
                 <XCircle className="h-3.5 w-3.5 mr-1" />
-                {bulkWronging ? "Discarding…" : `Wrong — ${selectedKnownIds.length} Known`}
+                {bulkWronging ? "Discarding…" : `Wrong ID — ${selectedKnownIds.length} Known`}
               </Button>
             )}
             <Button
