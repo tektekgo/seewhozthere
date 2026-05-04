@@ -32,6 +32,16 @@ pytz>=2023.3
 # Database (built-in with Python)
 # sqlite3 - included in Python standard library
 
+# Face Recognition — InsightFace ArcFace (deep learning, replaces HOG/LBP)
+# insightface 0.7.3 works on aarch64 (Raspberry Pi 5) with onnxruntime CPU.
+# On first run it downloads the buffalo_sc model (~30MB) to ~/.insightface/models/
+# IMPORTANT: onnxruntime (CPU) must be used — NOT onnxruntime-gpu on Pi.
+# albumentations is required by insightface but may need a specific version:
+#   pip3 install albumentations==1.3.1   (if newer versions cause import errors)
+insightface==0.7.3
+onnxruntime>=1.16.0,<2.0.0
+albumentations>=1.3.0,<2.0.0
+
 # NOTE: Hailo SDK (hailo_platform / hailort) must be installed separately
 # from the Hailo developer portal. It is NOT installable via pip.
 # See: docs/HAILO_SETUP.md for installation instructions.

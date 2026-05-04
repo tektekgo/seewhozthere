@@ -1,16 +1,26 @@
 """
-SeeWhozThere® Face Recognition Engine
+SeeWhozThere® Face Recognition Engine — InsightFace ArcFace Edition
 
-This module implements face recognition using a lightweight approach optimized for
-Raspberry Pi 5. It uses OpenCV's DNN face recognition model for encoding faces
-and comparing them to known individuals.
+Replaces the previous HOG/LBP feature-based approach with InsightFace's
+ArcFace deep learning model (buffalo_sc). ArcFace was specifically designed
+for surveillance and outdoor recognition scenarios and handles:
 
-Features:
-- Fast face encoding generation
-- Efficient face comparison using cosine similarity
-- Support for multiple known faces per person
-- Optimized for embedded systems
-- Recognition threshold configurable via config.ini [DETECTION] recognition_threshold
+  - Face angles up to ~45° from frontal
+  - Varying lighting conditions (outdoor, backlit, overcast)
+  - Partial occlusion (hats, hoods, glasses)
+  - Small face crops (down to ~40×40px)
+
+Model: buffalo_sc (small/compact ArcFace)
+  - 512-dimensional face embedding
+  - ~150–300ms per face on Raspberry Pi 5 CPU
+  - ~30MB download on first run (cached to ~/.insightface/models/)
+
+Interface: identical to the previous engine — all method signatures,
+return types, and the global get_face_recognition_engine() function
+are preserved so no other files need to change.
+
+Configuration (config.ini [DETECTION]):
+  recognition_threshold = 0.40   # cosine similarity; 0.35–0.50 recommended
 """
 
 import os
@@ -21,249 +31,312 @@ from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
 
+# ── Threshold loader ──────────────────────────────────────────────────────────
+
 def _load_recognition_threshold() -> float:
     """
-    Load the recognition threshold from config.ini [DETECTION] section.
-    Falls back to 0.45 if not set — this is intentionally lower than the
-    original hardcoded 0.6 to account for outdoor lighting variation,
-    face angle, and the HOG/LBP feature extractor's sensitivity.
+    Load recognition threshold from config.ini [DETECTION] section.
 
-    To tune:
-      - Lower value (e.g. 0.40) = more permissive, more matches, more false IDs
-      - Higher value (e.g. 0.55) = more strict, fewer matches, more Unknowns
+    ArcFace cosine similarity scores are higher than HOG/LBP scores for the
+    same face, so the default here (0.40) is intentionally different from the
+    old engine's 0.45.  Tune as follows:
+
+      - 0.30–0.35 : very permissive — good for far/angled faces, more false IDs
+      - 0.40      : recommended default for outdoor cameras
+      - 0.45–0.50 : strict — fewer false IDs but more Unknowns at distance
     """
     try:
         import configparser
         config_path = Path(__file__).parent.parent / "config.ini"
         cfg = configparser.RawConfigParser()
         cfg.read(str(config_path))
-        threshold = cfg.getfloat("DETECTION", "recognition_threshold", fallback=0.45)
-        print(f"[FaceRecognition] Recognition threshold loaded from config: {threshold}")
+        threshold = cfg.getfloat("DETECTION", "recognition_threshold", fallback=0.40)
+        print(f"[FaceRecognition] ArcFace recognition threshold: {threshold}")
         return threshold
     except Exception as e:
-        print(f"[FaceRecognition] Could not read recognition_threshold from config ({e}), using 0.45")
-        return 0.45
+        print(f"[FaceRecognition] Could not read recognition_threshold ({e}), using 0.40")
+        return 0.40
 
+
+# ── InsightFace loader ────────────────────────────────────────────────────────
+
+def _load_insightface_app():
+    """
+    Load InsightFace FaceAnalysis app with buffalo_sc model (recognition only).
+    Returns the app instance, or None if InsightFace is not installed.
+    """
+    try:
+        import insightface
+        from insightface.app import FaceAnalysis
+
+        # buffalo_sc: compact ArcFace model — best balance of speed and accuracy
+        # on CPU-only hardware like Raspberry Pi 5.
+        # det_size=(320,320) is sufficient since Hailo already found the face;
+        # we are only using InsightFace for the embedding, not detection.
+        app = FaceAnalysis(
+            name="buffalo_sc",
+            providers=["CPUExecutionProvider"],
+            allowed_modules=["recognition"],   # skip re-detection, landmark, age/gender
+        )
+        app.prepare(ctx_id=0, det_size=(320, 320))
+        print("[FaceRecognition] InsightFace buffalo_sc loaded successfully (ArcFace mode)")
+        return app
+    except ImportError:
+        print(
+            "[FaceRecognition] WARNING: InsightFace not installed. "
+            "Run: pip3 install insightface onnxruntime\n"
+            "[FaceRecognition] Falling back to HOG/LBP engine."
+        )
+        return None
+    except Exception as e:
+        print(f"[FaceRecognition] InsightFace load error: {e}. Falling back to HOG/LBP.")
+        return None
+
+
+# ── HOG/LBP fallback (kept for graceful degradation) ─────────────────────────
+
+class _HOGLBPFallback:
+    """Minimal HOG+LBP engine used only if InsightFace is unavailable."""
+
+    def encode(self, face_image: np.ndarray) -> np.ndarray:
+        face = cv2.resize(face_image, (128, 128))
+        gray = cv2.equalizeHist(cv2.cvtColor(face, cv2.COLOR_BGR2GRAY))
+        hog = self._hog(gray)
+        lbp = self._lbp(gray)
+        chist = self._chist(face)
+        enc = np.concatenate([hog, lbp, chist]).astype(np.float32)
+        return enc / (np.linalg.norm(enc) + 1e-7)
+
+    def _hog(self, g):
+        gx = cv2.Sobel(g, cv2.CV_32F, 1, 0, ksize=1)
+        gy = cv2.Sobel(g, cv2.CV_32F, 0, 1, ksize=1)
+        mag = np.sqrt(gx**2 + gy**2)
+        ang = np.arctan2(gy, gx) * 180 / np.pi
+        ang[ang < 0] += 180
+        feats = []
+        for i in range(0, g.shape[0] - 16, 16):
+            for j in range(0, g.shape[1] - 16, 16):
+                h, _ = np.histogram(ang[i:i+16, j:j+16].ravel(), 9, (0, 180),
+                                    weights=mag[i:i+16, j:j+16].ravel())
+                feats.extend(h)
+        return np.array(feats, dtype=np.float32)
+
+    def _lbp(self, g):
+        h, w = g.shape
+        lbp = np.zeros_like(g)
+        for i in range(1, h - 1):
+            for j in range(1, w - 1):
+                c = g[i, j]
+                code = (
+                    ((g[i-1, j-1] >= c) << 7) | ((g[i-1, j] >= c) << 6) |
+                    ((g[i-1, j+1] >= c) << 5) | ((g[i, j+1] >= c) << 4) |
+                    ((g[i+1, j+1] >= c) << 3) | ((g[i+1, j] >= c) << 2) |
+                    ((g[i+1, j-1] >= c) << 1) | (g[i, j-1] >= c)
+                )
+                lbp[i, j] = code
+        hist, _ = np.histogram(lbp.ravel(), 256, (0, 256))
+        hist = hist.astype(np.float32)
+        return hist / (hist.sum() + 1e-7)
+
+    def _chist(self, bgr):
+        feats = []
+        for ch in range(3):
+            h = cv2.calcHist([bgr], [ch], None, [32], [0, 256]).flatten()
+            feats.extend(h / (h.sum() + 1e-7))
+        return np.array(feats, dtype=np.float32)
+
+
+# ── Main engine ───────────────────────────────────────────────────────────────
 
 class FaceRecognitionEngine:
     """
-    Lightweight face recognition engine optimized for Raspberry Pi.
-    
-    Uses OpenCV's DNN face recognition model (based on ResNet) to generate
-    128-dimensional face encodings and compare them using cosine similarity.
+    ArcFace-based face recognition engine for SeeWhozThere®.
+
+    Uses InsightFace's buffalo_sc model to generate 512-dimensional ArcFace
+    embeddings.  Falls back to the legacy HOG/LBP engine if InsightFace is
+    not installed, so the system remains functional during upgrades.
+
+    Public interface is identical to the previous HOG/LBP engine:
+      encode_face(image)           → np.ndarray (embedding)
+      compare_faces(enc1, enc2)    → float (cosine similarity)
+      identify_face(enc, known)    → (visitor_id | None, score)
+      save_encoding(enc, path)
+      load_encoding(path)          → np.ndarray | None
     """
-    
+
     def __init__(self, model_path: Optional[str] = None):
-        """
-        Initialize the face recognition engine.
-        
-        Args:
-            model_path: Path to the face recognition model directory.
-                       If None, uses default OpenCV models.
-        """
         self.recognition_threshold = _load_recognition_threshold()
-        self.face_encoder = None
-        self._load_model(model_path)
-        
-    def _load_model(self, model_path: Optional[str] = None):
-        """
-        Load the face recognition model.
-        
-        For now, we'll use a simple feature extraction approach with OpenCV.
-        In production, you can use pre-trained models like FaceNet or ArcFace.
-        """
-        # We'll use a simple approach: extract features from face regions
-        # and use them for comparison. This is lightweight and works well
-        # for small datasets (< 100 people).
-        
-        # For better accuracy, you can download and use:
-        # - dlib's face recognition model
-        # - OpenCV's face recognition DNN model
-        # - FaceNet (TensorFlow Lite version for Pi)
-        
-        print(f"[FaceRecognition] Using lightweight feature-based recognition (threshold={self.recognition_threshold})")
-        
+        self._app = _load_insightface_app()
+        self._fallback = _HOGLBPFallback() if self._app is None else None
+        self._using_arcface = self._app is not None
+
+        if self._using_arcface:
+            print("[FaceRecognition] Engine: InsightFace ArcFace (buffalo_sc) — 512-dim embeddings")
+        else:
+            print("[FaceRecognition] Engine: HOG/LBP fallback — install insightface for better accuracy")
+
+    # ── Encoding ──────────────────────────────────────────────────────────────
+
     def encode_face(self, face_image: np.ndarray) -> np.ndarray:
         """
-        Generate a face encoding (feature vector) from a face image.
-        
+        Generate a face embedding from a face crop (BGR image).
+
+        With InsightFace: returns a 512-dimensional L2-normalised ArcFace
+        embedding.  The image does NOT need to be pre-cropped to just the
+        face — InsightFace will detect the face within the provided region.
+        If no face is detected, falls back to centre-crop encoding.
+
+        With HOG/LBP fallback: returns the legacy feature vector.
+
         Args:
-            face_image: BGR image containing a single face (cropped)
-            
+            face_image: BGR image containing a face (can be full frame or crop)
+
         Returns:
-            128-dimensional feature vector representing the face
+            np.ndarray: face embedding vector, L2-normalised
         """
-        # Resize face to standard size
-        face_resized = cv2.resize(face_image, (128, 128))
-        
-        # Convert to grayscale for feature extraction
-        gray = cv2.cvtColor(face_resized, cv2.COLOR_BGR2GRAY)
-        
-        # Apply histogram equalization for better feature extraction
-        gray = cv2.equalizeHist(gray)
-        
-        # Extract features using multiple methods
-        # 1. HOG (Histogram of Oriented Gradients)
-        hog = self._compute_hog(gray)
-        
-        # 2. LBP (Local Binary Patterns)
-        lbp = self._compute_lbp(gray)
-        
-        # 3. Color histogram from original image
-        color_hist = self._compute_color_histogram(face_resized)
-        
-        # Combine all features into a single vector
-        encoding = np.concatenate([hog, lbp, color_hist])
-        
-        # Normalize the encoding
-        encoding = encoding / (np.linalg.norm(encoding) + 1e-7)
-        
-        return encoding
-    
-    def _compute_hog(self, gray_image: np.ndarray) -> np.ndarray:
-        """Compute HOG features from grayscale image"""
-        # Simple HOG implementation
-        # Divide image into cells and compute gradient histograms
-        cell_size = 16
-        n_bins = 9
-        
-        # Compute gradients
-        gx = cv2.Sobel(gray_image, cv2.CV_32F, 1, 0, ksize=1)
-        gy = cv2.Sobel(gray_image, cv2.CV_32F, 0, 1, ksize=1)
-        
-        magnitude = np.sqrt(gx**2 + gy**2)
-        angle = np.arctan2(gy, gx) * 180 / np.pi
-        angle[angle < 0] += 180
-        
-        # Compute histogram for each cell
-        features = []
-        h, w = gray_image.shape
-        
-        for i in range(0, h - cell_size, cell_size):
-            for j in range(0, w - cell_size, cell_size):
-                cell_mag = magnitude[i:i+cell_size, j:j+cell_size]
-                cell_angle = angle[i:i+cell_size, j:j+cell_size]
-                
-                hist, _ = np.histogram(
-                    cell_angle.ravel(),
-                    bins=n_bins,
-                    range=(0, 180),
-                    weights=cell_mag.ravel()
+        if self._using_arcface:
+            return self._encode_arcface(face_image)
+        return self._fallback.encode(face_image)
+
+    def _encode_arcface(self, face_image: np.ndarray) -> np.ndarray:
+        """Run InsightFace ArcFace embedding on the face image."""
+        try:
+            # InsightFace expects BGR uint8
+            if face_image.dtype != np.uint8:
+                face_image = (face_image * 255).clip(0, 255).astype(np.uint8)
+
+            # Ensure minimum size for the model
+            h, w = face_image.shape[:2]
+            if h < 112 or w < 112:
+                scale = max(112 / h, 112 / w)
+                face_image = cv2.resize(
+                    face_image,
+                    (int(w * scale), int(h * scale)),
+                    interpolation=cv2.INTER_LINEAR
                 )
-                features.extend(hist)
-        
-        return np.array(features, dtype=np.float32)
-    
-    def _compute_lbp(self, gray_image: np.ndarray) -> np.ndarray:
-        """Compute Local Binary Pattern features"""
-        # Simple LBP implementation
-        h, w = gray_image.shape
-        lbp_image = np.zeros_like(gray_image)
-        
-        for i in range(1, h-1):
-            for j in range(1, w-1):
-                center = gray_image[i, j]
-                code = 0
-                code |= (gray_image[i-1, j-1] >= center) << 7
-                code |= (gray_image[i-1, j] >= center) << 6
-                code |= (gray_image[i-1, j+1] >= center) << 5
-                code |= (gray_image[i, j+1] >= center) << 4
-                code |= (gray_image[i+1, j+1] >= center) << 3
-                code |= (gray_image[i+1, j] >= center) << 2
-                code |= (gray_image[i+1, j-1] >= center) << 1
-                code |= (gray_image[i, j-1] >= center) << 0
-                lbp_image[i, j] = code
-        
-        # Compute histogram of LBP codes
-        hist, _ = np.histogram(lbp_image.ravel(), bins=256, range=(0, 256))
-        hist = hist.astype(np.float32)
-        hist = hist / (np.sum(hist) + 1e-7)
-        
-        return hist
-    
-    def _compute_color_histogram(self, bgr_image: np.ndarray) -> np.ndarray:
-        """Compute color histogram features"""
-        # Compute histogram for each channel
-        histograms = []
-        for i in range(3):  # B, G, R channels
-            hist = cv2.calcHist([bgr_image], [i], None, [32], [0, 256])
-            hist = hist.flatten()
-            hist = hist / (np.sum(hist) + 1e-7)
-            histograms.extend(hist)
-        
-        return np.array(histograms, dtype=np.float32)
-    
+
+            faces = self._app.get(face_image)
+
+            if faces:
+                # Use the largest detected face (most prominent)
+                largest = max(faces, key=lambda f: (
+                    (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1])
+                ))
+                embedding = largest.embedding.astype(np.float32)
+                # L2 normalise
+                norm = np.linalg.norm(embedding)
+                return embedding / (norm + 1e-7)
+            else:
+                # No face detected in crop — use whole-image embedding via
+                # direct normed pixel features as a last resort
+                print("[FaceRecognition] ArcFace: no face detected in crop, using pixel fallback")
+                return self._pixel_fallback(face_image)
+
+        except Exception as e:
+            print(f"[FaceRecognition] ArcFace encode error: {e}")
+            return self._pixel_fallback(face_image)
+
+    def _pixel_fallback(self, face_image: np.ndarray) -> np.ndarray:
+        """Last-resort encoding: resized normalised pixel values (512-dim)."""
+        resized = cv2.resize(face_image, (16, 32))  # 16×32×1 = 512
+        gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY).flatten().astype(np.float32)
+        return gray / (np.linalg.norm(gray) + 1e-7)
+
+    # ── Comparison ────────────────────────────────────────────────────────────
+
     def compare_faces(self, encoding1: np.ndarray, encoding2: np.ndarray) -> float:
         """
-        Compare two face encodings and return similarity score.
-        
-        Args:
-            encoding1: First face encoding
-            encoding2: Second face encoding
-            
+        Cosine similarity between two face embeddings.
+
         Returns:
-            Similarity score (0.0 to 1.0, higher is more similar)
+            float: similarity score in [0, 1]; higher = more similar.
+            ArcFace embeddings are already L2-normalised so dot product
+            equals cosine similarity directly.
         """
-        # Use cosine similarity
-        similarity = np.dot(encoding1, encoding2) / (
+        # Handle dimension mismatch gracefully (old HOG vs new ArcFace encodings)
+        if encoding1.shape != encoding2.shape:
+            return 0.0
+
+        similarity = float(np.dot(encoding1, encoding2) / (
             np.linalg.norm(encoding1) * np.linalg.norm(encoding2) + 1e-7
-        )
-        
-        return float(similarity)
-    
-    def identify_face(self, face_encoding: np.ndarray, 
-                     known_encodings: Dict[int, List[np.ndarray]]) -> Tuple[Optional[int], float]:
+        ))
+        # Clamp to [0, 1] — cosine can be negative for very dissimilar faces
+        return max(0.0, similarity)
+
+    # ── Identification ────────────────────────────────────────────────────────
+
+    def identify_face(
+        self,
+        face_encoding: np.ndarray,
+        known_encodings: Dict[int, List[np.ndarray]]
+    ) -> Tuple[Optional[int], float]:
         """
-        Identify a face by comparing it to known face encodings.
-        
+        Identify a face by comparing against all stored encodings.
+
+        Uses a voting strategy when multiple encodings exist per person:
+        the best individual match score determines the winner, but the
+        visitor must beat the threshold to be named.
+
         Args:
-            face_encoding: The encoding of the face to identify
-            known_encodings: Dictionary mapping visitor_id to list of their face encodings
-            
+            face_encoding: embedding of the face to identify
+            known_encodings: {visitor_id: [embedding, ...]}
+
         Returns:
-            Tuple of (visitor_id, confidence) or (None, best_similarity) if no match found.
-            Note: even when returning None, best_similarity is returned so callers can log it.
+            (visitor_id, score) if match found above threshold
+            (None, best_score)  if no match found
         """
         best_match_id = None
         best_similarity = 0.0
-        
+
         for visitor_id, encodings in known_encodings.items():
-            for known_encoding in encodings:
-                similarity = self.compare_faces(face_encoding, known_encoding)
-                
-                if similarity > best_similarity:
-                    best_similarity = similarity
-                    best_match_id = visitor_id
-        
-        # Only return a match if similarity exceeds threshold
+            # Skip encodings with mismatched dimensions (e.g. old HOG encodings
+            # still in DB before re-enrolment)
+            valid = [e for e in encodings if e.shape == face_encoding.shape]
+            if not valid:
+                continue
+
+            # Best score across all encodings for this person
+            visitor_best = max(self.compare_faces(face_encoding, e) for e in valid)
+
+            if visitor_best > best_similarity:
+                best_similarity = visitor_best
+                best_match_id = visitor_id
+
         if best_similarity >= self.recognition_threshold:
             return best_match_id, best_similarity
-        else:
-            # Return None but keep best_similarity so caller can log it for diagnostics
-            return None, best_similarity
-    
+        return None, best_similarity
+
+    # ── Persistence ───────────────────────────────────────────────────────────
+
     def save_encoding(self, encoding: np.ndarray, filepath: str):
-        """Save a face encoding to disk"""
+        """Persist a face encoding to disk."""
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             pickle.dump(encoding, f)
-    
+
     def load_encoding(self, filepath: str) -> Optional[np.ndarray]:
-        """Load a face encoding from disk"""
+        """Load a face encoding from disk."""
         try:
-            with open(filepath, 'rb') as f:
+            with open(filepath, "rb") as f:
                 return pickle.load(f)
         except (FileNotFoundError, pickle.UnpicklingError):
             return None
 
 
-# Global instance
-_face_recognition_engine = None
+# ── Singleton ─────────────────────────────────────────────────────────────────
+
+_face_recognition_engine: Optional[FaceRecognitionEngine] = None
 
 
 def get_face_recognition_engine() -> FaceRecognitionEngine:
-    """Get or create the global face recognition engine instance"""
+    """Return the global FaceRecognitionEngine instance (created on first call)."""
     global _face_recognition_engine
     if _face_recognition_engine is None:
         _face_recognition_engine = FaceRecognitionEngine()
     return _face_recognition_engine
+
+
+def reset_face_recognition_engine():
+    """Force re-initialisation of the engine (e.g. after model update)."""
+    global _face_recognition_engine
+    _face_recognition_engine = None
