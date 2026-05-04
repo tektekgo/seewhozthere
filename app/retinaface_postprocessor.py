@@ -350,10 +350,16 @@ class RetinaFacePostProcessor:
         landms = np.concatenate(landms_list, axis=0)
         
         print(f"[PostProcessor] Parsed tensors: loc={loc.shape}, conf={conf.shape}, landms={landms.shape}")
+        # Diagnostic: show raw conf range to help tune threshold
+        _raw_max = float(conf[:, 1].max())
+        _raw_min = float(conf[:, 1].min())
+        print(f"[PostProcessor] Raw conf[:,1] range: min={_raw_min:.3f}, max={_raw_max:.3f}")
         
-        # Step 2: Apply softmax to confidence scores
-        # Converts raw scores to probabilities that sum to 1.0
-        scores = np.exp(conf[:, 1]) / np.sum(np.exp(conf), axis=1)
+        # Step 2: Apply softmax to confidence scores (numerically stable version)
+        # Subtract max before exp to prevent overflow (inf/inf = nan bug)
+        conf_stable = conf - conf.max(axis=1, keepdims=True)
+        exp_conf = np.exp(conf_stable)
+        scores = exp_conf[:, 1] / exp_conf.sum(axis=1)
         
         # Step 3: Decode bounding boxes and landmarks
         boxes = self._decode_boxes(loc, self.priors, self.cfg['variance'])
@@ -373,6 +379,8 @@ class RetinaFacePostProcessor:
         landmarks = landmarks[inds]
         scores = scores[inds]
         
+        _score_max = float(scores.max()) if len(scores) > 0 else 0.0
+        print(f"[PostProcessor] Softmax scores — max={_score_max:.4f}, threshold={self.confidence_threshold}")
         print(f"[PostProcessor] After confidence filter: {len(boxes)} detections")
         
         # Step 6: Apply NMS
