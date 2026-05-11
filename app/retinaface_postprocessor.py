@@ -350,20 +350,20 @@ class RetinaFacePostProcessor:
         landms = np.concatenate(landms_list, axis=0)
         
         print(f"[PostProcessor] Parsed tensors: loc={loc.shape}, conf={conf.shape}, landms={landms.shape}")
-        # Diagnostic: show raw conf range for BOTH classes to detect index ordering
-        _raw_c0_max = float(conf[:, 0].max())
+        # Diagnostic: show raw conf range
         _raw_c1_max = float(conf[:, 1].max())
-        print(f"[PostProcessor] Raw conf — class0 max={_raw_c0_max:.3f}, class1 max={_raw_c1_max:.3f}")
+        _raw_c1_min = float(conf[:, 1].min())
+        print(f"[PostProcessor] Raw conf[:,1] (face class) — min={_raw_c1_min:.3f}, max={_raw_c1_max:.3f}")
         
         # Step 2: Apply softmax to confidence scores (numerically stable version)
-        # Subtract max before exp to prevent overflow (inf/inf = nan bug)
-        # NOTE: RetinaFace Hailo model outputs [face, background] — class 0 is FACE
-        # We use the class with the higher max logit as the face class
-        face_class = 0 if _raw_c0_max > _raw_c1_max else 1
+        # Subtract row-max before exp to prevent overflow (inf/inf = nan bug)
+        # The Hailo RetinaFace model outputs [background, face] — class 1 is FACE
+        # class 0 (background) has high logits everywhere; class 1 (face) is only
+        # high when a real face is present — so we must use conf[:,1] as the score
         conf_stable = conf - conf.max(axis=1, keepdims=True)
         exp_conf = np.exp(conf_stable)
-        scores = exp_conf[:, face_class] / exp_conf.sum(axis=1)
-        print(f"[PostProcessor] Using class {face_class} as face class — pre-filter max score={float(scores.max()):.4f}")
+        scores = exp_conf[:, 1] / exp_conf.sum(axis=1)
+        print(f"[PostProcessor] Softmax face scores — max={float(scores.max()):.4f}, threshold={self.confidence_threshold}")
         
         # Step 3: Decode bounding boxes and landmarks
         boxes = self._decode_boxes(loc, self.priors, self.cfg['variance'])
