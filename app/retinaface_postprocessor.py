@@ -387,6 +387,32 @@ class RetinaFacePostProcessor:
         print(f"[PostProcessor] After filter — max={_score_max:.4f}, threshold={self.confidence_threshold}")
         print(f"[PostProcessor] After confidence filter: {len(boxes)} detections")
         
+        # Step 5b: Filter by face shape — reject non-face shaped detections
+        # Faces are roughly square (aspect ratio 0.5–2.0) and bounded in size
+        # This eliminates cars, flower pots, trees, and other rectangular objects
+        if len(boxes) > 0:
+            widths  = boxes[:, 2] - boxes[:, 0]
+            heights = boxes[:, 3] - boxes[:, 1]
+            # Avoid division by zero
+            heights_safe = np.where(heights > 0, heights, 1)
+            aspect_ratios = widths / heights_safe
+            # Max face size: 350x350px — anything larger is not a face at normal doorbell distance
+            max_face_px = 350
+            shape_mask = (
+                (aspect_ratios >= 0.4) &   # not too narrow (tall sliver)
+                (aspect_ratios <= 2.0) &   # not too wide (car, pot, landscape object)
+                (widths  <= max_face_px) &
+                (heights <= max_face_px)
+            )
+            rejected = int((~shape_mask).sum())
+            if rejected > 0:
+                print(f"[PostProcessor] Shape filter rejected {rejected} non-face bbox(es) (aspect/size)")
+            boxes     = boxes[shape_mask]
+            landmarks = landmarks[shape_mask]
+            scores    = scores[shape_mask]
+        
+        print(f"[PostProcessor] After shape filter: {len(boxes)} detections")
+        
         # Step 6: Apply NMS
         keep = self._nms(boxes, scores, self.nms_threshold)
         boxes = boxes[keep]
