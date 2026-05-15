@@ -279,14 +279,20 @@ The script (`cleanup_snapshots.py`) safely removes snapshot images older than a 
 
 When new features are pushed to the repository, updating your Pi requires pulling the code and restarting **both** services.
 
-### The Restart Rule
+### Quick Reference — What Requires Which Restart
 
-| What changed | Command to run |
-|---|---|
-| Camera config, detection thresholds in `config.ini` | `sudo systemctl restart seewhozthere` |
-| Face detection/recognition Python files | `sudo systemctl restart seewhozthere` |
-| Web API, Telegram bot, or Frontend JS/CSS | `sudo systemctl restart seewhozthere-web` + browser hard-refresh |
-| **Any `git pull`** | **Restart both** |
+The table below covers every type of change and exactly what needs to be restarted. **No database action is ever needed for config or code changes** — the database is only touched when a sighting is saved or a face encoding is updated.
+
+| What changed | Restart needed | Notes |
+|---|---|---|
+| `config.ini` — any detection setting (`confidence_threshold`, `recognition_threshold`, `min_face_width`, etc.) | `sudo systemctl restart seewhozthere` | Read by the detection service at startup only |
+| `hailo_processor_v2.py`, `retinaface_postprocessor.py`, `face_recognition_engine.py` | `sudo systemctl restart seewhozthere` | Detection pipeline files |
+| `database.py`, `config.py`, `analytics.py` | `sudo systemctl restart seewhozthere` | Shared modules loaded at startup |
+| `main.py` (any `/api/` endpoint) | `sudo systemctl restart seewhozthere-web.service` | FastAPI web server |
+| `telegram_notifier.py` | `sudo systemctl restart seewhozthere-web.service` | Telegram polling loop runs inside the web service |
+| Frontend JS/CSS (after `pnpm build`) | `sudo systemctl restart seewhozthere-web.service` + browser hard-refresh | Static files served by FastAPI |
+| **Any `git pull`** | **`swt-restart` (both services)** | Safest default — restarts everything |
+| Database schema change (new table or column in `database.py`) | `sudo systemctl restart seewhozthere` | Schema migrations run automatically on startup; no manual SQL needed |
 
 ### One-Command Restart Alias (Recommended)
 
