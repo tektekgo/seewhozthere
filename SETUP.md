@@ -1,245 +1,238 @@
-# SeeWhozThere: Complete Setup Guide
+# SeeWhozThere® — Getting Started Guide
 
-This guide provides step-by-step instructions to set up the SeeWhozThere smart security system on a Raspberry Pi 5 with a Hailo AI HAT+. It assumes you are starting with a fresh Raspberry Pi OS installation.
+Welcome to SeeWhozThere®! This guide is designed to take you from a brand-new Raspberry Pi straight through to a fully functioning, private, AI-powered home security system. 
 
-## 1. Hardware & OS Requirements
+We have written this guide step-by-step so that anyone can follow it. You don't need to be a Linux expert, but you will need to run a few commands in the terminal.
 
-### Hardware
+---
 
-- **Raspberry Pi 5** (4GB or 8GB recommended)
-- **Hailo AI HAT+**
-- **microSD Card** (32GB or larger, high-speed recommended)
-- **Raspberry Pi 5 Official Power Supply** (5V/5A)
-- **RTSP-enabled IP Camera** (e.g., Tapo C310)
+## 1. What You Need Before You Start
 
-### Operating System
+### Hardware Checklist
+- **Raspberry Pi 5** (4 GB or 8 GB RAM)
+- **Raspberry Pi AI HAT+** (Hailo-8L, 13 TOPS model)
+- **Active Cooler** for Raspberry Pi 5 (highly recommended to prevent overheating)
+- **MicroSD Card** (32 GB or larger, high-speed A2 class recommended)
+- **Official Raspberry Pi 5 Power Supply** (5V/5A)
 
-- **Raspberry Pi OS (64-bit) with Desktop** - Bookworm release. The 64-bit version is required for the Hailo drivers.
+### Camera Requirements
+You need at least one IP camera that supports **RTSP** (Real-Time Streaming Protocol). Most security cameras support this, including:
+- Tapo (e.g., C310, C320WS)
+- Reolink
+- Amcrest
+- UniFi Protect
 
-## 2. OS Configuration
+**Before proceeding**, find your camera's RTSP URL. It usually looks like this:
+`rtsp://username:password@192.168.1.100:554/stream1`
+*(You can usually find this in your camera's mobile app settings or by searching "[Camera Brand] RTSP URL" online).*
 
-### Step 2.1: Enable PCIe Interface
+---
 
-The Hailo AI HAT+ connects via the Raspberry Pi 5's PCIe interface. You must enable it.
+## 2. Prepare Your Raspberry Pi
 
-1.  Open a terminal on your Raspberry Pi.
-2.  Edit the EEPROM configuration:
-    ```bash
-    sudo rpi-eeprom-config --edit
-    ```
-3.  Add the following line to the file:
-    ```
-    PCIE_PROBE=1
-    ```
-4.  Save the file and reboot:
-    ```bash
-    sudo reboot
-    ```
+1. **Install the Operating System:**
+   Use the official [Raspberry Pi Imager](https://www.raspberrypi.com/software/) on your computer.
+   - Choose **Raspberry Pi OS (64-bit)** (Bookworm release).
+   - *Important:* The 64-bit version is strictly required for the Hailo AI drivers.
 
-## 3. Hailo Driver & Runtime Installation
+2. **Assemble the Hardware:**
+   Attach the Active Cooler to the Pi, then mount the AI HAT+ on top according to the [official instructions](https://www.raspberrypi.com/documentation/accessories/ai-hat-plus.html).
 
-These steps are critical for the AI accelerator to function. The drivers are not available on PyPI and must be installed manually.
+3. **Boot Up:**
+   Insert the SD card, plug in the power, and connect to your network (Wi-Fi or Ethernet).
 
-### Step 3.1: Add Hailo's APT Repository
+4. **Enable the PCIe Interface (Crucial for the AI chip):**
+   Open a terminal on your Pi and run:
+   ```bash
+   sudo raspi-config
+   ```
+   - Go to **Advanced Options** → **PCIe Speed**
+   - Choose **Yes** to enable PCIe Gen 3.
+   - Finish and reboot when prompted.
+
+---
+
+## 3. Install the Hailo AI Drivers
+
+The Hailo-8L chip is the brain of this system. It processes the video feeds locally without sending anything to the cloud. We need to install its software.
+
+Open a terminal and run these commands one by one:
 
 ```bash
-sudo wget https://hailo-cs.s3.eu-west-2.amazonaws.com/public/Hailo-Public-GPG-Key.asc -O /usr/share/keyrings/hailo-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/hailo-archive-keyring.gpg] https://hailo-cs.s3.eu-west-2.amazonaws.com/hailo-apt-stable/ bookworm main" | sudo tee /etc/apt/sources.list.d/hailo.list
-sudo apt-get update
+sudo apt update
+sudo apt full-upgrade -y
+sudo apt install hailo-all -y
 ```
 
-### Step 3.2: Install Hailo Packages
-
+Next, give your user account permission to access the video hardware:
 ```bash
-sudo apt-get install -y hailo-dkms hailort hailortcli
+sudo usermod -a -G video $USER
 ```
 
-### Step 3.3: Verify Installation
-
-After a reboot, check that the Hailo device is detected.
-
+**Reboot your Pi** to apply the permissions:
 ```bash
 sudo reboot
 ```
 
-After the reboot, run:
+After the Pi turns back on, verify the AI chip is working:
+```bash
+hailortcli fw-control identify
+```
+*(You should see output confirming a Hailo-8L device is present).*
+
+---
+
+## 4. Download and Setup SeeWhozThere®
+
+Now we will download the software and set up its isolated Python environment.
+
+1. **Download the code:**
+   ```bash
+   mkdir -p ~/projects
+   cd ~/projects
+   git clone https://github.com/tektekgo/seewhozthere.git
+   cd seewhozthere
+   ```
+
+2. **Download the AI Face Detection Model:**
+   ```bash
+   mkdir -p models
+   wget -O models/retinaface_mobilenet_v1.hef https://hailo-model-zoo.s3.eu-west-2.amazonaws.com/FaceDetection/Detection/retinaface_mobilenet_v1/pretrained/2023-07-18/retinaface_mobilenet_v1.hef
+   ```
+
+3. **Run the Setup Script:**
+   This script creates a safe "virtual environment" so our software doesn't conflict with your Pi's system files.
+   ```bash
+   ./setup.sh
+   ```
+
+4. **Build the Web Dashboard:**
+   This compiles the beautiful user interface you will use to manage the system.
+   ```bash
+   ./build_frontend.sh
+   ```
+
+---
+
+## 5. Configure Your System
+
+The system needs to know where your cameras are and how you want it to behave.
+
+1. **Create your configuration file:**
+   ```bash
+   cp config.ini.example config.ini
+   nano config.ini
+   ```
+
+2. **Edit the file:**
+   Use the arrow keys to move around. Change these specific lines:
+
+   - **`[GENERAL]`**
+     Change `timezone` to your local timezone (e.g., `America/New_York` or `Europe/London`).
+
+   - **`[SECURITY]`**
+     Change `passphrase = changeme` to a secure password. You will use this to log into the dashboard.
+
+   - **`[CAMERAS]`**
+     Add your camera(s) here. Do not use quotes.
+     ```ini
+     [CAMERAS]
+     front_door = rtsp://admin:password@192.168.1.100:554/stream1
+     ```
+
+   - **`[DETECTION]`**
+     If your camera is outdoors, change `confidence_threshold` to `0.15` and `min_face_width` to `35`.
+
+3. **Save and Exit:**
+   Press `Ctrl+O`, then `Enter` to save. Press `Ctrl+X` to exit.
+
+---
+
+## 6. Start the Services
+
+We are ready to turn the system on! We will install it as a background service so it automatically starts whenever your Pi is plugged in.
 
 ```bash
-hailortcli scan
+./install_service.sh
 ```
 
-You should see output indicating that a Hailo-8L device was found.
+The script will confirm that two services are running:
+1. `seewhozthere` (The AI brain looking at the cameras)
+2. `seewhozthere-web` (The dashboard you view in your browser)
 
-## 4. Project Setup
+---
 
-### Step 4.1: Clone the Repository
+## 7. Your First Login
 
-```bash
-cd ~/
-mkdir projects
-cd projects
-git clone https://github.com/tektekgo/seewhozthere.git
-cd seewhozthere
-```
+1. Open a web browser on your computer or phone (must be on the same Wi-Fi as the Pi).
+2. Go to: `http://<YOUR_PI_IP_ADDRESS>:7222/dashboard`
+   *(If you don't know your Pi's IP address, type `hostname -I` in the Pi's terminal).*
+3. Enter the passphrase you set in `config.ini`.
 
-### Step 4.2: Python Environment & Dependencies
+**You should now see the SeeWhozThere® dashboard!** 
 
-1.  **Install Python and venv**:
-    ```bash
-    sudo apt-get install -y python3-pip python3-venv
-    ```
-2.  **Create and activate a virtual environment**:
-    ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate
-    ```
-3.  **Install pinned dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+---
 
-### Step 4.3: Download the AI Model
+## 8. Teaching the System Your Face
 
-The face detection model is not included in the repository. Download it and place it in the `models` directory.
+Right now, the system doesn't know who anyone is. Every face it sees will be marked as "Unknown". Here is how to teach it:
 
-```bash
-mkdir models
-wget https://github.com/hailo-ai/hailo_model_zoo/raw/master/models_files/retinaface_mobilenet_v1_736x1280_hailo8l.hef -O models/retinaface_mobilenet_v1.hef
-```
+1. Walk outside in front of your camera. Look at it for a few seconds.
+2. Go to your Dashboard and click on the **History** tab.
+3. You will see a snapshot of your face. Click the **Change Name** or **Correct ID** button.
+4. Type your name (e.g., "John") and save.
 
-## 5. Configuration
+**What just happened?** 
+The system just extracted a mathematical map of your face (an "encoding") and saved it to the database. The next time you walk outside, it will recognize you automatically!
 
-### Step 5.1: Create `config.ini`
+*Tip: For the best accuracy, correct your face 4 or 5 times in different lighting conditions. The system learns and gets smarter every time you correct it.*
 
-Copy the example configuration file:
+---
 
-```bash
-cp config.ini.example config.ini
-```
+## 9. Set Up Telegram Alerts (Highly Recommended)
 
-### Step 5.2: Edit `config.ini`
+SeeWhozThere® can send a photo to your phone the second an unknown person is detected.
 
-Open the file `config.ini` with a text editor (e.g., `nano config.ini`) and configure the following sections:
+1. Open the Telegram app on your phone and search for `@BotFather`.
+2. Send the message `/newbot` and follow the prompts to name your bot.
+3. BotFather will give you an **HTTP API Token**. Copy it.
+4. Search Telegram for `@userinfobot` and press Start. It will give you your **Id** (a string of numbers). Copy it.
+5. Go to the **Settings** page in your SeeWhozThere® dashboard.
+6. Paste the Token and Chat ID into the Telegram section and click Save.
 
--   **`[CAMERAS]`**: Add your camera's RTSP URL. The name you give it (e.g., `front_door`) will be used in the dashboard.
-    ```ini
-    [CAMERAS]
-    front_door = rtsp://user:password@192.168.1.100:554/stream1
-    ```
--   **`[SECURITY]`**: Change the `passphrase` to something secure. This will be used to log in to the web dashboard.
-    ```ini
-    [SECURITY]
-    passphrase = your_secret_passphrase_here
-    ```
+Now, when someone walks up to your door, you will get a Telegram message with their photo and buttons to instantly identify them right from the chat!
 
-## 6. Systemd Service Installation
+---
 
-This will run the detection and web server processes automatically in the background.
+## 10. Automated Storage Cleanup
 
-```bash
-sudo ./install_service.sh
-```
+The system saves a snapshot every time it sees a face. To prevent your SD card from filling up, set up this automated cleanup job to delete photos older than 7 days (it will NOT delete your learned faces).
 
-This script will:
-1.  Copy the `.service` files to `/etc/systemd/system/`.
-2.  Reload the systemd daemon.
-3.  Enable and start both `seewhozthere.service` and `seewhozthere-web.service`.
-
-## 7. First Run & Verification
-
-1.  **Check Service Status**:
-    ```bash
-    sudo systemctl status seewhozthere
-    sudo systemctl status seewhozthere-web
-    ```
-    Both should show `Active: active (running)`.
-
-2.  **Access the Dashboard**:
-    Open a web browser on the same network and go to `http://<your_pi_ip_address>:7222`.
-
-3.  **Log In**:
-    Use the passphrase you set in `config.ini`.
-
-4.  **Test Detection**:
-    Walk in front of your camera. Your face should appear on the dashboard's history page within a few seconds.
-
-## 8. Automated Storage Cleanup (Cron Job)
-
-SeeWhozThere® saves a snapshot every time a face is detected. Over time, this can fill up your Raspberry Pi's SD card. An automated cleanup script is included to safely delete old snapshots while preserving your AI's learned face encodings.
-
-1. Open your terminal on the Raspberry Pi.
-2. Edit your cron jobs:
+1. Open a terminal on the Pi and run:
    ```bash
    crontab -e
    ```
-3. Add the following line at the bottom of the file. This will run the cleanup script every night at 2:00 AM and delete snapshots older than 7 days:
+2. Add this exact line to the very bottom:
    ```bash
-   0 2 * * * /usr/bin/python3 /home/ubuntu/projects/seewhozthere/cleanup_snapshots.py --days 7 >> /home/ubuntu/projects/seewhozthere/cleanup.log 2>&1
+   0 2 * * * /usr/bin/python3 ~/projects/seewhozthere/cleanup_snapshots.py --days 7 >> ~/projects/seewhozthere/data/cleanup.log 2>&1
    ```
-4. Save and exit the editor.
+3. Save and exit.
 
-## 9. Troubleshooting
+---
 
--   **Web server not starting**: Check the logs with `sudo journalctl -u seewhozthere-web -n 50 --no-pager`.
--   **Detection service not starting**: Check the logs with `sudo journalctl -u seewhozthere -n 50 --no-pager`.
--   **No faces detected**: Verify the camera RTSP URL is correct and accessible.
+## Keeping the System Updated
 
-## 10. Frontend Development (Optional)
-
-If you want to modify the web dashboard, you will need to set up the frontend development environment.
-
-### Step 9.1: Install Node.js and npm
-
-We recommend using Node.js version 22.x.
+When new features are released, you can update your system easily. We recommend adding this shortcut to your Pi once:
 
 ```bash
-# Install nvm (Node Version Manager)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-
-# Reload your shell to use nvm
-source ~/.bashrc
-
-# Install and use Node.js v22
-nvm install 22
-nvm use 22
+echo "alias swt-restart='sudo systemctl restart seewhozthere seewhozthere-web.service && echo \"Both SeeWhozThere® services restarted\"'" >> ~/.bashrc && source ~/.bashrc
 ```
 
-### Step 9.2: Install Frontend Dependencies
-
+Now, whenever you want to update, just run:
 ```bash
-cd ~/projects/seewhozthere/frontend
-npm install
+cd ~/projects/seewhozthere
+git pull
+swt-restart
 ```
 
-### Step 9.3: Run the Development Server
-
-This will start a local development server for the frontend on port 8080, which will proxy API requests to the FastAPI backend running on port 7222.
-
-```bash
-npm run dev
-```
-
-Now you can access the development dashboard at `http://<your_pi_ip_address>:8080`.
-
-
-## Appendix: Camera Capacity
-
-The number of cameras you can reliably run depends on your Raspberry Pi model and the complexity of your RTSP streams. The Hailo AI HAT+ handles the heavy lifting of face detection, but the Pi's CPU is still responsible for decoding each camera's video stream.
-
-### Recommendations for Raspberry Pi 5
-
-| Camera Count | Expected Performance |
-|---|---|
-| 1–2 cameras | Excellent — full detection rate, no frame drops |
-| 3–4 cameras | Good — slight increase in inference queue wait time, still reliable |
-| 5–6 cameras | Acceptable — recommend increasing `detection_interval` to 2–3s to reduce CPU load |
-| 7+ cameras | Not recommended without tuning — RTSP decode threads compete for CPU, frame drops likely |
-
-**Practical recommendation: 4 cameras is the sweet spot for a Pi 5 with Hailo HAT+.**
-
-### Tuning for Higher Camera Counts
-
-If you need to run more than 4 cameras, you can improve performance by editing `config.ini`:
-
-- **Increase `detection_interval`**: In the `[DETECTION]` section, set `detection_interval = 2` or `3`. This tells the processor to only analyze a frame every 2-3 seconds per camera, significantly reducing CPU load from frame preprocessing.
-- **Lower camera resolution/framerate**: If your cameras support it, lower the RTSP stream to 720p or 10-15 FPS. This reduces the amount of data the CPU needs to decode.
+Enjoy your private, AI-powered security system!

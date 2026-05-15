@@ -23,11 +23,12 @@ SeeWhozThere® is an advanced, privacy-first home security and face recognition 
 - **Interactive Analytics** — clickable stat cards and charts that drill down into hourly activity, known/unknown breakdown, weekly trends, per-camera activity, and a heatmap of activity by hour and day.
 - **History Page** — full sighting log with face thumbnails, timestamps, camera names, and confidence scores. Supports multi-select, bulk naming, and bulk delete.
 - **Click-to-Enlarge Lightbox** — click any face thumbnail in the History page to view a full-size snapshot with identification options.
-- **Re-identification & Correction** — every detection card has a **Rename** button to correct a misidentification, a **Mark as Unknown** button to unassign a visitor, and a **Change Name** option directly from the lightbox.
+- **Re-identification & Correction** — every detection card has a **Correct ID** button to correct a misidentification, a **Wrong ID** button to unassign a visitor, and a **Change Name** option directly from the lightbox.
 - **People Management Page** — view all known people, their thumbnails, sighting counts, and last-seen times. Add new people, edit names, and delete records.
-- **Settings Page** — manage camera RTSP streams, detection parameters, Telegram credentials, and general settings directly from the browser. No SSH required for routine configuration changes.
+- **Settings Page** — manage camera RTSP streams, detection parameters, Telegram credentials, and general settings directly from the browser. Start, stop, or restart system services directly from the UI without SSH.
 - **Passphrase Login** — protect the dashboard with a passphrase. Configurable session duration. Can be disabled for fully local-only deployments.
-- **Hailo Status Indicator** — real-time display of whether the Hailo NPU is detected and active.
+- **Live Status Indicators** — real-time navbar badges showing whether the Hailo NPU is active, and which Recognition Engine (ArcFace vs HOG) is currently loaded.
+- **Recognition Engine Details** — dedicated card in Settings showing the active AI model, threshold, number of people trained, and total encodings in the database.
 
 ### Telegram Notifications
 - **Instant Unknown-Visitor Alerts** with a face snapshot photo sent the moment an unknown person is detected.
@@ -116,6 +117,12 @@ The Hailo SDK (`hailo-all`) is required for the NPU to function and is **not** i
    ./setup.sh
    ```
 
+4. **Build the Web Dashboard:**
+   This compiles the React frontend into static files that the FastAPI server can serve.
+   ```bash
+   ./build_frontend.sh
+   ```
+
 ---
 
 ## ⚙️ Step 4: Configuration
@@ -179,10 +186,10 @@ driveway   = rtsp://admin:MyStr0ngPass@192.168.1.101:554/stream1
 | Key | Default | Description |
 |---|---|---|
 | `snapshot_cooldown_seconds` | `15` | Minimum seconds between saved snapshots per camera. Lower = more photos per visit; higher = fewer. Recommended: 15–30 s. |
-| `confidence_threshold` | `0.50` | Minimum Hailo detection confidence (0.0–1.0). Recommended: `0.50` for outdoor cameras. |
-| `recognition_threshold` | `0.40` | Minimum ArcFace similarity score (0.0–1.0) to identify a known person. Recommended: `0.40`–`0.45`. |
-| `min_face_width` | `50` | Minimum face width in pixels. Rejects small distant detections. Recommended: `50` indoors, `80`+ outdoors. |
-| `min_face_height` | `50` | Minimum face height in pixels. Same guidance as width. |
+| `confidence_threshold` | `0.15` | Minimum Hailo detection confidence (0.0–1.0). Recommended: `0.15` for outdoor cameras using the Hailo RetinaFace model. |
+| `recognition_threshold` | `0.45` | Minimum ArcFace similarity score (0.0–1.0) to identify a known person. Recommended: `0.40`–`0.45`. |
+| `min_face_width` | `35` | Minimum face width in pixels. Rejects small distant detections. Recommended: `35` outdoors to catch faces at distance. |
+| `min_face_height` | `35` | Minimum face height in pixels. Same guidance as width. |
 
 ---
 
@@ -234,7 +241,7 @@ SeeWhozThere® runs as two separate `systemd` services.
    ```
 
 The web dashboard is accessible on your local network at:
-`http://<YOUR_PI_IP>:7222`
+`http://<YOUR_PI_IP>:7222/dashboard`
 
 ---
 
@@ -269,7 +276,7 @@ The script (`cleanup_snapshots.py`) safely removes snapshot images older than a 
    ```
 2. Add the following line at the bottom to run the cleanup script every night at 2:00 AM, keeping the last 7 days of history:
    ```bash
-   0 2 * * * /usr/bin/python3 /home/ubuntu/projects/seewhozthere/cleanup_snapshots.py --days 7 >> /home/ubuntu/projects/seewhozthere/cleanup.log 2>&1
+   0 2 * * * /usr/bin/python3 ~/projects/seewhozthere/cleanup_snapshots.py --days 7 >> ~/projects/seewhozthere/data/cleanup.log 2>&1
    ```
 3. Save and exit.
 

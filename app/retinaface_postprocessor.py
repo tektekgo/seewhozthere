@@ -388,19 +388,25 @@ class RetinaFacePostProcessor:
         print(f"[PostProcessor] After confidence filter: {len(boxes)} detections")
         
         # Step 5b: Filter by face shape — reject non-face shaped detections
-        # Faces are roughly square (aspect ratio 0.5–2.0) and bounded in size
-        # This eliminates cars, flower pots, trees, and other rectangular objects
+        # Faces are roughly square (aspect ratio 0.55–1.6) and bounded in size.
+        # Tighter than the theoretical range to reject real-world false positives:
+        #   - Birds/animals cluster into wide-short bboxes (ratio < 0.55)
+        #   - Landscape objects (cars, pots, signs) produce wide bboxes (ratio > 1.6)
+        # Minimum size 35×35px: anything smaller is too distant/blurry for ArcFace.
+        # Maximum size 350×350px: anything larger is not a face at doorbell distance.
         if len(boxes) > 0:
             widths  = boxes[:, 2] - boxes[:, 0]
             heights = boxes[:, 3] - boxes[:, 1]
             # Avoid division by zero
             heights_safe = np.where(heights > 0, heights, 1)
             aspect_ratios = widths / heights_safe
-            # Max face size: 350x350px — anything larger is not a face at normal doorbell distance
-            max_face_px = 350
+            min_face_px = 35   # below this, ArcFace embedding quality is too poor
+            max_face_px = 350  # above this, not a face at normal doorbell distance
             shape_mask = (
-                (aspect_ratios >= 0.4) &   # not too narrow (tall sliver)
-                (aspect_ratios <= 2.0) &   # not too wide (car, pot, landscape object)
+                (aspect_ratios >= 0.55) &  # not too wide/short (bird clusters, landscape)
+                (aspect_ratios <= 1.6)  &  # not too narrow/tall (vertical signs, slivers)
+                (widths  >= min_face_px) &
+                (heights >= min_face_px) &
                 (widths  <= max_face_px) &
                 (heights <= max_face_px)
             )
