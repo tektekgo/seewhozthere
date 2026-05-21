@@ -617,26 +617,34 @@ async def identify_sighting(sighting_id: int, visitor_id: int = Form(...)):
             if img is not None:
                 fre = _get_fre()
                 encoding = fre.encode_face(img)
-                encoding_bytes = encoding.astype(np.float32).tobytes()
 
-                # Add to multi-encoding table (auto-capped at 20)
-                db.add_face_encoding(visitor_id, encoding_bytes, source='sighting')
-                encoding_count = db.get_encoding_count(visitor_id)
+                # encode_face() returns None when ArcFace finds no face in the
+                # snapshot (e.g. the snapshot is a bird or shadow that slipped
+                # through detection).  Do NOT save a None encoding — that would
+                # poison the database and cause future false-positive matches.
+                if encoding is None:
+                    print(f"[identify] ArcFace found no face in snapshot for sighting {sighting_id} — skipping encoding save")
+                else:
+                    encoding_bytes = encoding.astype(np.float32).tobytes()
 
-                # Also keep the legacy face_encoding column in sync (first encoding only)
-                if not visitor.get("face_encoding"):
-                    thumb = visitor.get("thumbnail_path") or snapshot_path
-                    db.update_visitor(visitor_id, face_encoding=encoding_bytes, thumbnail_path=thumb)
+                    # Add to multi-encoding table (auto-capped at 20)
+                    db.add_face_encoding(visitor_id, encoding_bytes, source='sighting')
+                    encoding_count = db.get_encoding_count(visitor_id)
 
-                # Reload known faces in the running detection processor
-                try:
-                    processor = get_processor()
-                    processor.reload_known_faces()
-                    print(f"[identify] Added encoding #{encoding_count} for {visitor['name']} — reloaded detector")
-                except Exception as reload_err:
-                    print(f"[identify] Encoding saved but reload failed: {reload_err}")
+                    # Also keep the legacy face_encoding column in sync (first encoding only)
+                    if not visitor.get("face_encoding"):
+                        thumb = visitor.get("thumbnail_path") or snapshot_path
+                        db.update_visitor(visitor_id, face_encoding=encoding_bytes, thumbnail_path=thumb)
 
-                encoding_saved = True
+                    # Reload known faces in the running detection processor
+                    try:
+                        processor = get_processor()
+                        processor.reload_known_faces()
+                        print(f"[identify] Added encoding #{encoding_count} for {visitor['name']} — reloaded detector")
+                    except Exception as reload_err:
+                        print(f"[identify] Encoding saved but reload failed: {reload_err}")
+
+                    encoding_saved = True
         except Exception as enc_err:
             print(f"[identify] Could not extract encoding from snapshot: {enc_err}")
 

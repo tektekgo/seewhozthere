@@ -310,8 +310,15 @@ class HailoProcessorV2:
             if face_img.size == 0:
                 return None, 0.0
             
-            # Generate face encoding
+            # Generate face encoding.
+            # encode_face() returns None when ArcFace finds no face in the crop
+            # (e.g. a bird, shadow, or plant passed the detection stage).
+            # In that case we skip recognition entirely — do NOT match against
+            # known people and do NOT save a garbage encoding to the database.
             encoding = self.face_recognition.encode_face(face_img)
+            if encoding is None:
+                print(f"[RECOG] {camera_name}: ArcFace found no face in crop — skipping recognition")
+                return None, 0.0
             
             # Compare with known faces
             if len(self.known_encodings) > 0:

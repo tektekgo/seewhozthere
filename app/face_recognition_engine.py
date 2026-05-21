@@ -266,17 +266,19 @@ class FaceRecognitionEngine:
         Generate a face embedding from a face crop (BGR image).
 
         With InsightFace: returns a 512-dimensional L2-normalised ArcFace
-        embedding.  The image does NOT need to be pre-cropped to just the
-        face — InsightFace will detect the face within the provided region.
-        If no face is detected, falls back to centre-crop encoding.
+        embedding, or **None** if ArcFace cannot detect a face in the crop.
+        Callers MUST check for None before saving or comparing the result.
+        Returning None (rather than a pixel-hash fallback) prevents garbage
+        crops (birds, shadows, plants) from poisoning the encoding database.
 
-        With HOG/LBP fallback: returns the legacy feature vector.
+        With HOG/LBP fallback: returns the legacy feature vector (never None).
 
         Args:
             face_image: BGR image containing a face (can be full frame or crop)
 
         Returns:
             np.ndarray: face embedding vector, L2-normalised
+            None: if ArcFace finds no face in the crop (do not save this result)
         """
         if self._using_arcface:
             return self._encode_arcface(face_image)
@@ -311,20 +313,26 @@ class FaceRecognitionEngine:
                 norm = np.linalg.norm(embedding)
                 return embedding / (norm + 1e-7)
             else:
-                # No face detected in crop — use whole-image embedding via
-                # direct normed pixel features as a last resort
-                print("[FaceRecognition] ArcFace: no face detected in crop, using pixel fallback")
-                return self._pixel_fallback(face_image)
+                # No face detected in crop — do NOT save a garbage encoding.
+                # Return None so the caller can skip saving this result.
+                print("[FaceRecognition] ArcFace: no face detected in crop — returning None")
+                return None
 
         except Exception as e:
             print(f"[FaceRecognition] ArcFace encode error: {e}")
-            return self._pixel_fallback(face_image)
+            return None
 
-    def _pixel_fallback(self, face_image: np.ndarray) -> np.ndarray:
-        """Last-resort encoding: resized normalised pixel values (512-dim)."""
-        resized = cv2.resize(face_image, (16, 32))  # 16×32×1 = 512
-        gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY).flatten().astype(np.float32)
-        return gray / (np.linalg.norm(gray) + 1e-7)
+    def _pixel_fallback(self, face_image: np.ndarray) -> None:
+        """
+        Previously returned a pixel-hash fallback embedding when ArcFace found
+        no face in the crop.  This caused database poisoning: garbage crops
+        (birds, shadows, plants) generated pixel-hash embeddings that were
+        stored as valid face encodings and then matched against future detections.
+
+        Now returns None so the caller can discard the result entirely.
+        """
+        print("[FaceRecognition] ArcFace: no face in crop — returning None (not saving garbage encoding)")
+        return None
 
     # ── Comparison ────────────────────────────────────────────────────────────
 
