@@ -574,6 +574,47 @@ async def reset_visitor_encoding(visitor_id: int):
         ),
     }
 
+@app.post("/api/visitors/reset-all-encodings")
+async def reset_all_encodings():
+    """
+    Clear ALL stored face encodings for EVERY visitor.
+
+    Use this when the encoding database has been contaminated by false positives
+    (e.g. birds, shadows, or objects that were incorrectly labelled as people).
+    After calling this endpoint, all visitors will appear as Unknown until they
+    are re-enrolled by walking past the camera and being identified via Telegram
+    or the dashboard.
+
+    This does NOT delete any visitors or sightings — only the face embeddings.
+    """
+    db = get_db()
+    visitors = db.get_all_visitors()
+    cleared_count = 0
+    results = []
+    for visitor in visitors:
+        try:
+            deleted = db.clear_face_encodings(visitor['id'])
+            cleared_count += deleted
+            results.append({"name": visitor['name'], "encodings_cleared": deleted})
+            print(f"[reset-all-encodings] Cleared {deleted} encoding(s) for '{visitor['name']}'")
+        except Exception as e:
+            print(f"[reset-all-encodings] Failed for '{visitor['name']}': {e}")
+    # Reload known faces so the processor immediately stops matching anyone
+    try:
+        processor = get_processor()
+        processor.reload_known_faces()
+    except Exception:
+        pass
+    return {
+        "success": True,
+        "message": (
+            f"Cleared {cleared_count} total encoding(s) across {len(visitors)} visitor(s). "
+            "Everyone will appear as Unknown until re-enrolled."
+        ),
+        "details": results,
+    }
+
+
 @app.post("/api/sightings/{sighting_id}/identify")
 async def identify_sighting(sighting_id: int, visitor_id: int = Form(...)):
     """

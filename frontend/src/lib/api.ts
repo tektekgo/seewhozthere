@@ -145,6 +145,12 @@ export const api = {
     return res.json();
   },
 
+  resetAllEncodings: async () => {
+    const baseUrl = getApiUrl();
+    const res = await fetch(`${baseUrl}/api/visitors/reset-all-encodings`, { method: "POST" });
+    return res.json();
+  },
+
   // --- Service control ---
   getServiceStatus: () =>
     fetchFromApi("/api/service/status", { active: false, installed: false, status: "unknown" }),

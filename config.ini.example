@@ -52,9 +52,20 @@ session_hours = 24
 snapshot_cooldown_seconds = 15
 
 # Minimum confidence score (0.0 to 1.0) for a face detection to be recorded.
-# Higher values = fewer false positives but may miss some real faces.
-# Recommended: 0.6 for indoor cameras, 0.80-0.85 for outdoor cameras.
-confidence_threshold = 0.6
+# This is the PRIMARY gate — it controls whether the Hailo model considers a
+# region a face at all. Setting this too low (e.g. 0.15) causes everything —
+# birds, shadows, light sources — to be treated as faces and flood the system.
+#
+# The Hailo RetinaFace model uses softmax scores. For outdoor cameras:
+#   - Non-faces (background, birds, lights) typically score 0.10–0.25
+#   - Real faces at distance score 0.20–0.50
+#   - Real faces up close score 0.50–0.99
+#
+# Recommended starting value: 0.50
+#   - Increase toward 0.65 if you still get false positives (birds, lights)
+#   - Decrease toward 0.35 ONLY if real faces at distance are being missed
+#   - Do NOT go below 0.20 — you will detect everything in the frame
+confidence_threshold = 0.50
 
 # Minimum face size in pixels (width x height) to be recorded.
 # Rejects small distant detections caused by foliage, shadows, or passing cars.

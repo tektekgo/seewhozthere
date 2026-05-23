@@ -36,6 +36,7 @@ import {
   XCircle,
   CalendarDays,
   RotateCcw,
+  ShieldAlert,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -405,6 +406,8 @@ export default function People() {
   const [deleteTarget, setDeleteTarget] = useState<Visitor | null>(null);
   const [resetTarget, setResetTarget] = useState<Visitor | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [showResetAll, setShowResetAll] = useState(false);
+  const [resettingAll, setResettingAll] = useState(false);
 
   const loadVisitors = async () => {
     setLoading(true);
@@ -436,6 +439,24 @@ export default function People() {
       setResetTarget(null);
     }
   };
+
+  const handleResetAll = async () => {
+    setResettingAll(true);
+    try {
+      const res = await api.resetAllEncodings();
+      if (res.success) {
+        toast.success(res.message ?? "All face encodings cleared. Re-enrol each person by walking past the camera.");
+        loadVisitors();
+      } else {
+        toast.error(res.detail ?? "Failed to reset all encodings");
+      }
+    } catch {
+      toast.error("Failed to reset all encodings");
+    } finally {
+      setResettingAll(false);
+      setShowResetAll(false);
+    }
+  };
   useEffect(() => {
     loadVisitors();
   }, []);
@@ -460,10 +481,21 @@ export default function People() {
             Manage registered visitors and their face recognition profiles.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={loadVisitors} disabled={loading}>
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
             Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowResetAll(true)}
+            disabled={visitors.length === 0}
+            className="border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+            title="Clear all face encodings for everyone — use when the recognition database has been contaminated by false positives"
+          >
+            <ShieldAlert className="h-3.5 w-3.5 mr-1.5" />
+            Reset All Encodings
           </Button>
           <Button size="sm" onClick={() => setShowAdd(true)}>
             <UserPlus className="h-3.5 w-3.5 mr-1.5" />
@@ -565,7 +597,40 @@ export default function People() {
         onClose={() => setDeleteTarget(null)}
         onDeleted={loadVisitors}
       />
-      {/* Reset Face Data confirmation dialog */}
+      {/* Reset ALL Face Encodings confirmation dialog */}
+      <AlertDialog open={showResetAll} onOpenChange={(o) => { if (!o) setShowResetAll(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-500" />
+              Reset All Face Encodings?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will clear <strong>all stored face recognition data</strong> for every person
+              ({visitors.length} visitor{visitors.length !== 1 ? "s" : ""}).
+              <br /><br />
+              Use this when the recognition database has been contaminated by false positives
+              (birds, shadows, or objects that were accidentally labelled as people).
+              <br /><br />
+              <strong>Everyone will appear as Unknown</strong> until you re-enrol them by walking
+              past the camera and identifying them via Telegram or the History page.
+              Visitor names and sighting history are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resettingAll}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleResetAll}
+              disabled={resettingAll}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {resettingAll ? "Resetting…" : "Reset All Face Data"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset Face Data confirmation dialog (per-person) */}
       <AlertDialog open={!!resetTarget} onOpenChange={(o) => { if (!o) setResetTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
