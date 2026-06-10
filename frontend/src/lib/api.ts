@@ -151,6 +151,12 @@ export const api = {
     return res.json();
   },
 
+  clearAllHistory: async () => {
+    const baseUrl = getApiUrl();
+    const res = await fetch(`${baseUrl}/api/sightings/all`, { method: "DELETE" });
+    return res.json();
+  },
+
   // --- Service control ---
   getServiceStatus: () =>
     fetchFromApi("/api/service/status", { active: false, installed: false, status: "unknown" }),

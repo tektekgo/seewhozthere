@@ -619,6 +619,66 @@ async def reset_all_encodings():
     }
 
 
+
+@app.delete("/api/sightings/all")
+async def clear_all_history():
+    """
+    Delete ALL sighting records and their snapshot files.
+
+    Use this to wipe the entire detection history — for example after a period
+    of false positives where all detections were incorrect.  This permanently
+    removes every sighting row from the database and deletes the associated
+    snapshot image files from disk.
+
+    This does NOT affect visitors, face encodings, or any other data.
+    """
+    db = get_db()
+    conn = db._get_connection()
+    try:
+        cursor = conn.cursor()
+        # Fetch all snapshot paths before deleting
+        cursor.execute("SELECT snapshot_path FROM sightings WHERE snapshot_path IS NOT NULL")
+        rows = cursor.fetchall()
+        snapshot_paths = [row[0] for row in rows if row[0]]
+
+        # Delete all sighting records
+        cursor.execute("SELECT COUNT(*) FROM sightings")
+        total = cursor.fetchone()[0]
+        cursor.execute("DELETE FROM sightings")
+        conn.commit()
+        print(f"[clear-all-history] Deleted {total} sighting record(s) from database")
+
+        # Delete snapshot files from disk
+        deleted_files = 0
+        missing_files = 0
+        for path in snapshot_paths:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+                    deleted_files += 1
+                else:
+                    missing_files += 1
+            except Exception as e:
+                print(f"[clear-all-history] Could not delete snapshot {path}: {e}")
+
+        print(f"[clear-all-history] Deleted {deleted_files} snapshot file(s) ({missing_files} already missing)")
+        return {
+            "success": True,
+            "message": (
+                f"Deleted {total} sighting record(s) and {deleted_files} snapshot file(s). "
+                "History is now empty."
+            ),
+            "sightings_deleted": total,
+            "snapshots_deleted": deleted_files,
+        }
+    except Exception as e:
+        conn.rollback()
+        print(f"[clear-all-history] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear history: {str(e)}")
+    finally:
+        conn.close()
+
+
 @app.post("/api/sightings/{sighting_id}/identify")
 async def identify_sighting(sighting_id: int, visitor_id: int = Form(...)):
     """

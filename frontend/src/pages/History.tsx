@@ -4,8 +4,18 @@ import {
   Search, UserCheck, UserX, Camera, Clock, Calendar,
   Plus, Tag, Trash2, RefreshCw, CheckSquare, Square,
   CheckCheck, X, Users, Video, Filter as FilterIcon, ZoomIn,
-  XCircle, CheckCircle2,
+  XCircle, CheckCircle2, ShieldAlert,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ImageLightbox, type LightboxImage } from "@/components/ImageLightbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -525,6 +535,8 @@ const History = () => {
 
   // Lightbox state
   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
+  const [showClearAll, setShowClearAll] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
 
   // ── Read URL params on mount ──────────────────────────────────────────────
   useEffect(() => {
@@ -685,6 +697,24 @@ const History = () => {
     }
   };
 
+  const handleClearAll = async () => {
+    setClearingAll(true);
+    try {
+      const res = await api.clearAllHistory();
+      if (res.success) {
+        setSightings([]);
+        toast.success(res.message ?? "All history cleared.");
+      } else {
+        toast.error(res.detail ?? "Failed to clear history");
+      }
+    } catch {
+      toast.error("Failed to clear history");
+    } finally {
+      setClearingAll(false);
+      setShowClearAll(false);
+    }
+  };
+
   return (
     <main className="container py-6 space-y-5">
 
@@ -700,6 +730,17 @@ const History = () => {
           <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
             Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowClearAll(true)}
+            disabled={sightings.length === 0}
+            className="border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+            title="Permanently delete all detection history and snapshot files"
+          >
+            <ShieldAlert className="h-3.5 w-3.5 mr-1.5" />
+            Clear All History
           </Button>
           <Button size="sm" onClick={() => setShowAddVisitor(true)}>
             <Plus className="h-3.5 w-3.5 mr-1.5" />Add Known Visitor
@@ -921,6 +962,36 @@ const History = () => {
           if (s) setNamingSighting(s);
         }}
       />
+
+      {/* Clear All History confirmation dialog */}
+      <AlertDialog open={showClearAll} onOpenChange={(o) => { if (!o) setShowClearAll(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-red-500" />
+              Clear All Detection History?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>all {sightings.length} sighting record{sightings.length !== 1 ? "s" : ""}</strong> and
+              their snapshot images from disk.
+              <br /><br />
+              Use this to wipe a period of incorrect detections (false positives) and start fresh.
+              <br /><br />
+              <strong>This cannot be undone.</strong> Visitor names and face recognition data are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearingAll}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearAll}
+              disabled={clearingAll}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {clearingAll ? "Clearing…" : "Delete All History"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 };
