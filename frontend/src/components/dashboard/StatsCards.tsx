@@ -90,7 +90,7 @@ export function StatsCards({
       />
       <StatCard
         title="Active Cameras"
-        subtitle="Currently streaming"
+        subtitle="Configured in config.ini"
         value={activeCameras}
         icon={<Camera className="h-5 w-5 text-emerald-500" />}
         delay={160}

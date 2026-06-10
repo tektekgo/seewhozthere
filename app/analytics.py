@@ -44,12 +44,12 @@ class Analytics:
         """, (str(today),))
         today_activity = cursor.fetchone()['count']
 
-        # Active cameras seen today
-        cursor.execute("""
-            SELECT COUNT(DISTINCT camera_name) as count FROM sightings
-            WHERE substr(timestamp, 1, 10) = ?
-        """, (str(today),))
-        active_cameras = cursor.fetchone()['count']
+        # Active cameras — count cameras configured in config.ini (not sightings-based)
+        try:
+            from app.config import get_cameras
+            active_cameras = len(get_cameras())
+        except Exception:
+            active_cameras = 0
 
         # Unknown detections today (no visitor assigned)
         cursor.execute("""
