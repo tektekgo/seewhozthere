@@ -803,20 +803,23 @@ class TelegramCallbackHandler:
                     if img is not None:
                         fre = _get_fre()
                         encoding = fre.encode_face(img)
-                        encoding_bytes = encoding.astype(np.float32).tobytes()
-                        # Add to multi-encoding table (auto-capped at 20)
-                        db.add_face_encoding(visitor_id, encoding_bytes, source='sighting')
-                        # Keep legacy column in sync for first encoding
-                        if not visitor.get("face_encoding"):
-                            thumb = visitor.get("thumbnail_path") or snapshot_path
-                            db.update_visitor(visitor_id, face_encoding=encoding_bytes, thumbnail_path=thumb)
-                        try:
-                            from app.hailo_processor_v2 import get_processor
-                            get_processor().reload_known_faces()
-                        except Exception:
-                            pass
-                        enc_count = db.get_encoding_count(visitor_id)
-                        print(f"[Telegram Callback] Added encoding #{enc_count} for {visitor['name']}")
+                        if encoding is None:
+                            print(f"[Telegram Callback] ArcFace found no face in snapshot for {visitor['name']} — encoding not saved")
+                        else:
+                            encoding_bytes = encoding.astype(np.float32).tobytes()
+                            # Add to multi-encoding table (auto-capped at 20)
+                            db.add_face_encoding(visitor_id, encoding_bytes, source='sighting')
+                            # Keep legacy column in sync for first encoding
+                            if not visitor.get("face_encoding"):
+                                thumb = visitor.get("thumbnail_path") or snapshot_path
+                                db.update_visitor(visitor_id, face_encoding=encoding_bytes, thumbnail_path=thumb)
+                            try:
+                                from app.hailo_processor_v2 import get_processor
+                                get_processor().reload_known_faces()
+                            except Exception:
+                                pass
+                            enc_count = db.get_encoding_count(visitor_id)
+                            print(f"[Telegram Callback] Added encoding #{enc_count} for {visitor['name']}")
                 except Exception as enc_err:
                     print(f"[Telegram Callback] Encoding extraction failed: {enc_err}")
 
@@ -873,19 +876,22 @@ class TelegramCallbackHandler:
                     if img is not None:
                         fre = _get_fre()
                         encoding = fre.encode_face(img)
-                        encoding_bytes = encoding.astype(np.float32).tobytes()
-                        db.add_face_encoding(visitor_id, encoding_bytes, source='confirmed')
-                        # Keep legacy column in sync
-                        visitor = db.get_visitor(visitor_id)
-                        if visitor and not visitor.get("face_encoding"):
-                            db.update_visitor(visitor_id, face_encoding=encoding_bytes)
-                        try:
-                            from app.hailo_processor_v2 import get_processor
-                            get_processor().reload_known_faces()
-                        except Exception:
-                            pass
-                        enc_count = db.get_encoding_count(visitor_id)
-                        print(f"[Telegram Callback] Confirmed correct — added encoding #{enc_count} for visitor {visitor_id}")
+                        if encoding is None:
+                            print(f"[Telegram Callback] ArcFace found no face in snapshot for visitor {visitor_id} — encoding not saved")
+                        else:
+                            encoding_bytes = encoding.astype(np.float32).tobytes()
+                            db.add_face_encoding(visitor_id, encoding_bytes, source='confirmed')
+                            # Keep legacy column in sync
+                            visitor = db.get_visitor(visitor_id)
+                            if visitor and not visitor.get("face_encoding"):
+                                db.update_visitor(visitor_id, face_encoding=encoding_bytes)
+                            try:
+                                from app.hailo_processor_v2 import get_processor
+                                get_processor().reload_known_faces()
+                            except Exception:
+                                pass
+                            enc_count = db.get_encoding_count(visitor_id)
+                            print(f"[Telegram Callback] Confirmed correct — added encoding #{enc_count} for visitor {visitor_id}")
                 except Exception as enc_err:
                     print(f"[Telegram Callback] Encoding extraction on confirm failed: {enc_err}")
 
@@ -1018,21 +1024,24 @@ class TelegramCallbackHandler:
                     if img is not None:
                         fre = _get_fre()
                         encoding = fre.encode_face(img)
-                        encoding_bytes = encoding.astype(np.float32).tobytes()
-                        # Add to multi-encoding table
-                        db.add_face_encoding(visitor_id, encoding_bytes, source='new_person')
-                        # Also set legacy column
-                        db.update_visitor(visitor_id, face_encoding=encoding_bytes)
-                        try:
-                            from app.hailo_processor_v2 import get_processor
-                            proc = get_processor()
-                            if proc is not None:
-                                proc.reload_known_faces()
-                                print(f"[Telegram Callback] Known faces reloaded after adding '{name}'")
-                            else:
-                                print("[Telegram Callback] WARNING: get_processor() returned None — faces not reloaded in memory")
-                        except Exception as reload_err:
-                            print(f"[Telegram Callback] WARNING: reload_known_faces failed: {reload_err}")
+                        if encoding is None:
+                            print(f"[Telegram Callback] ArcFace found no face in snapshot for new person '{name}' — encoding not saved")
+                        else:
+                            encoding_bytes = encoding.astype(np.float32).tobytes()
+                            # Add to multi-encoding table
+                            db.add_face_encoding(visitor_id, encoding_bytes, source='new_person')
+                            # Also set legacy column
+                            db.update_visitor(visitor_id, face_encoding=encoding_bytes)
+                            try:
+                                from app.hailo_processor_v2 import get_processor
+                                proc = get_processor()
+                                if proc is not None:
+                                    proc.reload_known_faces()
+                                    print(f"[Telegram Callback] Known faces reloaded after adding '{name}'")
+                                else:
+                                    print("[Telegram Callback] WARNING: get_processor() returned None — faces not reloaded in memory")
+                            except Exception as reload_err:
+                                print(f"[Telegram Callback] WARNING: reload_known_faces failed: {reload_err}")
                 except Exception as enc_err:
                     print(f"[Telegram Callback] Encoding extraction failed: {enc_err}")
                     import traceback as _tb2; _tb2.print_exc()

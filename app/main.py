@@ -397,9 +397,11 @@ async def add_visitor(
             # Convert to relative path for database
             thumbnail_path_str = f"data/thumbnails/{thumbnail_filename}"
 
-            # Generate face encoding
+            # Generate face encoding (may be None if ArcFace finds no face in the photo)
             encoding = face_recognition.encode_face(img)
-            face_encoding_blob = encoding.tobytes()
+            if encoding is not None:
+                face_encoding_blob = encoding.tobytes()
+            # If encoding is None, face_encoding_blob stays None — visitor is added without encoding
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error processing photo: {str(e)}")
@@ -490,9 +492,11 @@ async def update_visitor(
 
             update_data['thumbnail_path'] = f"data/thumbnails/{thumbnail_filename}"
 
-            # Generate new face encoding
+            # Generate new face encoding (may be None if ArcFace finds no face in the photo)
             encoding = face_recognition.encode_face(img)
-            update_data['face_encoding'] = encoding.tobytes()
+            if encoding is not None:
+                update_data['face_encoding'] = encoding.tobytes()
+            # If encoding is None, skip updating the encoding — keep the existing one
             
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error processing photo: {str(e)}")

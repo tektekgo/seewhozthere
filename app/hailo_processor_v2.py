@@ -317,7 +317,7 @@ class HailoProcessorV2:
             # known people and do NOT save a garbage encoding to the database.
             encoding = self.face_recognition.encode_face(face_img)
             if encoding is None:
-                print(f"[RECOG] {camera_name}: ArcFace found no face in crop — skipping recognition")
+                print("[RECOG] ArcFace found no face in crop — skipping recognition")
                 return None, 0.0
             
             # Compare with known faces
